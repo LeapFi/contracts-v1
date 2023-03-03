@@ -1,6 +1,6 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
-import { ethers } from "ethers";
+import { ethers } from "hardhat";
 
 const {
   ACC_1,
@@ -21,22 +21,32 @@ const config: HardhatUserConfig = {
       },
     ],
   },
-  
+
   networks: {
+    hardhat: {
+      forking: {
+        url: `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
+        blockNumber: 65614482,
+      },
+      blockGasLimit: 0x1fffffffffff,
+      gasPrice: 0,
+      initialBaseFeePerGas: 0,
+      allowUnlimitedContractSize: true,
+    },
     arbitrum: {
       accounts: [ACC_1],
-      chainId: 42161,
       url: `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-    },
-    goerli: {
-      accounts: [ACC_1],
-      chainId: 5,
-      url: `https://eth-goerli.g.alchemy.com/v2/${ALCHEMY_KEY}`,
     },
   },
 
-  etherscan: {
-    apiKey: ETHERSCAN_API_KEY,
+  // gasReporter: {
+  //   enabled: process.env.REPORT_GAS !== undefined,
+  //   currency: "USD",
+  // },
+
+  typechain: {
+    outDir: "typechain",
+    target: "ethers-v5",
   },
 };
 
