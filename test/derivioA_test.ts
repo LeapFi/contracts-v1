@@ -10,9 +10,46 @@ import {
   IUniswapV3Pool,
   ISwapRouter,
 } from "../typechain";
+import { Signer } from "ethers";
+import { fundErc20 } from "../src/fundErc20";
+import { swap } from "../src/swap";
+
+// export async function constructPosition(
+//   token0Amount: CurrencyAmount<Token>,
+//   token1Amount: CurrencyAmount<Token>
+// ): Promise<Position> {
+//   // get pool info
+//   const poolInfo = await getPoolInfo()
+
+//   // construct pool instance
+//   const configuredPool = new Pool(
+//     token0Amount.currency,
+//     token1Amount.currency,
+//     poolInfo.fee,
+//     poolInfo.sqrtPriceX96.toString(),
+//     poolInfo.liquidity.toString(),
+//     poolInfo.tick
+//   )
+
+//   // create position using the maximum liquidity from input amounts
+//   return Position.fromAmounts({
+//     pool: configuredPool,
+//     tickLower:
+//       nearestUsableTick(poolInfo.tick, poolInfo.tickSpacing) -
+//       poolInfo.tickSpacing * 2,
+//     tickUpper:
+//       nearestUsableTick(poolInfo.tick, poolInfo.tickSpacing) +
+//       poolInfo.tickSpacing * 2,
+//     amount0: token0Amount.quotient,
+//     amount1: token1Amount.quotient,
+//     useFullPrecision: true,
+//   })
+// }
 
 describe("DerivioA test", function () {
   
+  let owner: Signer;
+  let otherAccount: Signer;
   let uniswapV3Pool: IUniswapV3Pool;
   let uniswapV3Factory: IUniswapV3Factory;
   let swapRouter: ISwapRouter;
@@ -25,19 +62,10 @@ describe("DerivioA test", function () {
   async function deployContracts() {
 
     let addresses = getAddresses(hre.network.name);
+    let feeTier = 500;
 
     // Contracts are deployed using the first signer/account by default
     const [owner, otherAccount] = await ethers.getSigners();
-
-    const UniHelper = await ethers.getContractFactory("UniHelper");
-    const uniHelper = await UniHelper.deploy(addresses.UniswapV3Factory);
-
-    const DerivioA = await ethers.getContractFactory("DerivioA");
-    const derivioA = await DerivioA.deploy(
-      uniHelper.address,
-      addresses.UniswapV3Factory,
-      addresses.SwapRouter
-    );
 
     uniswapV3Factory = (await ethers.getContractAt(
       "IUniswapV3Factory",
@@ -47,7 +75,7 @@ describe("DerivioA test", function () {
 
     uniswapV3Pool = (await ethers.getContractAt(
       "IUniswapV3Pool",
-      await uniswapV3Factory.getPool(addresses.USDC, addresses.WETH, 500),
+      await uniswapV3Factory.getPool(addresses.USDC, addresses.WETH, feeTier),
       owner
     )) as IUniswapV3Pool;
 
@@ -63,110 +91,54 @@ describe("DerivioA test", function () {
       owner
     )) as IERC20;
 
-    // const weth = new ethers.Contract(
-    //   addresses.WETH,
-    //   [
-    //     "function deposit() external payable",
-    //     "function sendValue(address payable recipient, uint256 amount)",
-    //     "function withdraw(uint256 _amount) external",
-    //     "function balanceOf(address account) public view returns (uint256)",
-    //     "function approve(address spender, uint256 amount) external returns (bool)",
-    //   ],
-    //   owner
-    // );
-
     const usdc = (await ethers.getContractAt(
       "IERC20",
       addresses.USDC,
       owner
     )) as IERC20;
 
+    const UniHelper = await ethers.getContractFactory("UniHelper");
+    const uniHelper = await UniHelper.deploy(addresses.UniswapV3Factory);
+
+    const DerivioA = await ethers.getContractFactory("DerivioA");
+    const derivioA = await DerivioA.deploy(
+      uniHelper.address,
+      addresses.UniswapV3Factory,
+      addresses.SwapRouter,
+      addresses.NonfungiblePositionManager,
+      weth.address,
+      usdc.address
+    );
+
     const slot0 = await uniswapV3Pool.slot0();
     const tickSpacing = await uniswapV3Pool.tickSpacing();
 
-    lowerTick = slot0.tick - (slot0.tick % tickSpacing) - tickSpacing;
-    upperTick = slot0.tick - (slot0.tick % tickSpacing) + 2 * tickSpacing;
+    lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 20 * tickSpacing;
+    upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing;
     
-    let ab = await ethers.provider.getBalance(owner.address);
-    console.log('Balance: ', ab)
+    console.log('Balance: ', await ethers.provider.getBalance(owner.address))
     console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address))
-    let c = 1
     
-    const fundErc20 = async (contract: any, sender: any, recepient: any, amount: any, decimals: any) => {
-
-      // await owner.sendTransaction({
-      //   to: sender,
-      //   value: ethers.utils.parseEther("1"), // Sends exactly 1.0 ether
-      //   gasLimit: 10000000,
-      // });
-
-      const params = [{
-        from: owner.address,
-        to: sender,
-        value: '10000000' // 1 ether
-      }];
-
-      const transactionHash = await ethers.provider.send('eth_sendTransaction', params)
-
-      await hre.network.provider.request({
-        method: "hardhat_impersonateAccount",
-        params: [sender],
-      });
+    console.log("usdc: " + await usdc.balanceOf(addresses.USDCWhale))
+    await fundErc20(usdc, addresses.USDCWhale, owner.address, 10000000, 6);
       
-      const FUND_AMOUNT = ethers.utils.parseUnits(amount, decimals);
-      // fund erc20 token to the contract
-      const whale = await ethers.getSigner(sender);
-    
-      const contractSigner = contract.connect(whale);
-      await contractSigner.transfer(recepient, FUND_AMOUNT);
-
-      await hre.network.provider.request({
-        method: "hardhat_stopImpersonatingAccount",
-        params: [sender],
-      });
-    };
-
-    console.log("usdc: " + await usdc.balanceOf('0x905dfcd5649217c42684f23958568e533c711aa3'))
-    await fundErc20(usdc, '0x905dfcd5649217c42684f23958568e533c711aa3', owner.address, '1000', 6);
-      
-
-    // await hre.network.provider.request({
-    //   method: "hardhat_setBalance",
-    //   params: [owner.address,
-    //     ethers.utils.parseUnits("1", 18)],
-    // });
-
-    // await ethers.provider.send("hardhat_setBalance", [
-    //     owner.address,
-    //     ethers.utils.parseUnits("1", 18),
-    //   ]);
-
-    // await weth.sendValue(owner.address, ethers.utils.parseUnits("1", 18));
-    // await weth.deposit({ value: ethers.utils.parseUnits("100000", 18) });
-
-    console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address))
-    let d = 1
-
-
-    // await hre.network.provider.send("hardhat_setBalance", [
-    //     owner.address,
-    //     ethers.utils.parseUnits("1", 18),
-    //   ]);
-
-    // await swapRouter.exactInputSingle({
-    //   tokenIn: addresses.WMATIC,
-    //   tokenOut: addresses.USDC,
-    //   fee: 500,
-    //   recipient: owner.address,
-    //   deadline: ethers.constants.MaxUint256,
-    //   amountIn: ethers.utils.parseUnits("1000", 18),
-    //   amountOutMinimum: ethers.constants.Zero,
-    //   sqrtPriceLimitX96: 0,
-    // });
-
-    console.log('Balance: ', ab)
     console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address))
     
+    await swap(swapRouter, owner, usdc, weth, 100, 6);
+
+    console.log('Balance: ', await ethers.provider.getBalance(owner.address))
+    console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address))
+    
+    await weth.approve(derivioA.address, ethers.constants.MaxUint256);
+    await usdc.approve(derivioA.address, ethers.constants.MaxUint256);
+    await derivioA.openPosition(
+      lowerTick,
+      upperTick,
+      feeTier,
+      0,
+      ethers.utils.parseUnits("1000", 6),
+      0,
+    );
 
     let a = 1
   }
