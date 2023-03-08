@@ -16,8 +16,8 @@ import "hardhat/console.sol";
 contract DerivioA is ReentrancyGuard {
 
     using SafeERC20 for IERC20;
-    IERC20 private token0;
-    IERC20 private token1;
+    IERC20 public immutable token0;
+    IERC20 public immutable token1;
     uint128 private constant precision = 1e10;
 
     UniHelper private immutable uniHelper;
@@ -29,11 +29,22 @@ contract DerivioA is ReentrancyGuard {
     mapping(address => ComposedLiquidity[]) public composedLiquidity;
 
     struct ComposedLiquidity {
+        uint256 openTime;
+        UniV3Position uniV3Position;
+        GMXPosition gmxPosition;
+    }
+
+    struct UniV3Position {
         int24 tickLower;
         int24 tickUpper;
         uint24 feeTier;
         uint256 tokenId;
         uint128 liquidity;
+    }
+
+    struct GMXPosition {
+        uint256 id;
+        uint256 depositedUsdc;
         uint128 shortDelta;
     }
 
@@ -50,11 +61,12 @@ contract DerivioA is ReentrancyGuard {
         uniFactory = _uniFactory;
         swapRouter = _swapRouter;
         positionManager = _positionManager;
-
-        (token0, token1) = uniHelper.getTokenOrder(_token0, _token1);
+        token0 = IERC20(_token0);
+        token1 = IERC20(_token1);
     }
 
     function openPosition(
+        address _recipient,
         int24 _tickLower, 
         int24 _tickUpper, 
         uint24 _feeTier, 
@@ -78,14 +90,14 @@ contract DerivioA is ReentrancyGuard {
         token1.safeTransferFrom(msg.sender, address(this), _amount1Desired);
 
         (, int24 tickCurrent, , , , , ) = IUniswapV3Pool(poolAddress).slot0();
-        (uint256 amount0Ratio, uint256 amount1Ratio) = uniHelper.calcAmountRatio(tickCurrent, _tickLower, _tickUpper);
+        // (uint256 amount0Ratio, uint256 amount1Ratio) = uniHelper.calcAmountRatio(tickCurrent, _tickLower, _tickUpper);
 
-        console.log("ratio..");
-        console.log("amount0Ratio: %s", amount0Ratio);
-        console.log("amount1Ratio: %s", amount1Ratio);
+        // console.log("ratio..");
+        // console.log("amount0Ratio: %s", amount0Ratio);
+        // console.log("amount1Ratio: %s", amount1Ratio);
 
-        uint256 amount1Swap = _amount1Desired - 
-            _amount1Desired * uint256(int256(tickCurrent - _tickLower)) / uint256(int256(_tickUpper - _tickLower));
+        uint256 amount1Swap = (_amount1Desired * precision - 
+            _amount1Desired * precision * uint256(int256(tickCurrent - _tickLower)) / uint256(int256(_tickUpper - _tickLower))) / precision;
         
         _amount1Desired -= amount1Swap;
         _amount0Desired += swapExactInputSingle(token1, token0, amount1Swap, _feeTier);
@@ -93,15 +105,33 @@ contract DerivioA is ReentrancyGuard {
         (
             uint256 tokenId,
             uint128 liquidity,
-            uint256 amount0Out,
-            uint256 amount1Out ) = mintPosition(_tickLower, _tickUpper, _feeTier, _amount0Desired, _amount1Desired);
+            uint256 amount0Minted,
+            uint256 amount1Minted ) = mintLiquidity(_tickLower, _tickUpper, _feeTier, _amount0Desired, _amount1Desired);
 
-        addPositionInfo(_tickLower, _tickUpper, _feeTier, tokenId, liquidity, _shortRatio);
+        _amount0Desired -= amount0Minted;
+        _amount1Desired -= amount1Minted;
+
+        console.log("remains..");
+        console.log("amount0Owed: %s", _amount0Desired);
+        console.log("amount1Owed: %s", _amount1Desired);
+
+        if (_amount0Desired != 0)
+            token0.safeTransfer(msg.sender, _amount0Desired);
+
+        if (_amount1Desired != 0)
+            token1.safeTransfer(msg.sender, _amount1Desired);
+
+        addPositionInfo(_recipient, _tickLower, _tickUpper, _feeTier, tokenId, liquidity, 0);
         // console.log("liquidity: %s", liquidity);
         // addPositionInfo(_tickLower, _tickUpper, _feeTier, liquidity, 0);
+
+        console.log("balances..");
+        console.log("amount0: %s", token0.balanceOf(address(this)));
+        console.log("amount1: %s", token1.balanceOf(address(this)));
     }
 
     function addPositionInfo(
+        address _recipient,
         int24 _tickLower, 
         int24 _tickUpper,
         uint24 _feeTier,
@@ -112,17 +142,37 @@ contract DerivioA is ReentrancyGuard {
         internal
     {
         ComposedLiquidity memory position;
-        position.tickLower = _tickLower;
-        position.tickUpper = _tickUpper;
-        position.feeTier = _feeTier;
-        position.tokenId = _tokenId;
-        position.liquidity = _liquidity;
-        position.shortDelta = _shortDelta;
 
-        composedLiquidity[msg.sender].push(position);
+        UniV3Position memory uniV3Position;
+        uniV3Position.tickLower = _tickLower;
+        uniV3Position.tickUpper = _tickUpper;
+        uniV3Position.feeTier = _feeTier;
+        uniV3Position.tokenId = _tokenId;
+        uniV3Position.liquidity = _liquidity;
+
+        GMXPosition memory gmxPosition;
+        gmxPosition.id = 0;
+        gmxPosition.depositedUsdc = 0;
+        gmxPosition.shortDelta = 0;
+
+        position.openTime = block.timestamp;
+        position.uniV3Position = uniV3Position;
+        position.gmxPosition = gmxPosition;
+
+        composedLiquidity[_recipient].push(position);
     }
 
-    function mintPosition(
+    function positionsOf(
+        address _user
+    )
+        public
+        view
+        returns (ComposedLiquidity[] memory)
+    {
+        return composedLiquidity[_user];
+    }
+
+    function mintLiquidity(
         int24 _tickLower, 
         int24 _tickUpper, 
         uint24 _feeTier,
@@ -133,8 +183,8 @@ contract DerivioA is ReentrancyGuard {
         returns (
             uint256 tokenId,
             uint128 liquidity,
-            uint256 amount0,
-            uint256 amount1)
+            uint256 amount0Minted,
+            uint256 amount1Minted)
     {
         require(_amount0 > 0 && _amount1 > 0, "Amounts must be greater than zero");
 
@@ -163,13 +213,13 @@ contract DerivioA is ReentrancyGuard {
         (
             tokenId,
             liquidity,
-            amount0,
-            amount1
+            amount0Minted,
+            amount1Minted
         ) = positionManager.mint(params);
 
         console.log("minting..");
-        console.log("amount0: %s", amount0);
-        console.log("amount1: %s", amount1);
+        console.log("amount0Minted: %s", amount0Minted);
+        console.log("amount1Minted: %s", amount1Minted);
     }
 
     function swapExactInputSingle(
@@ -198,7 +248,6 @@ contract DerivioA is ReentrancyGuard {
                 sqrtPriceLimitX96: 0
             });
 
-        // The call to `exactInputSingle` executes the swap.
         amountOut = swapRouter.exactInputSingle(params);
     }
 }
