@@ -113,7 +113,7 @@ describe("DerivioA test", function () {
     const slot0 = await uniswapV3Pool.slot0();
     const tickSpacing = await uniswapV3Pool.tickSpacing();
 
-    lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 20 * tickSpacing;
+    lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 25 * tickSpacing;
     upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing;
     
     console.log('Balance: ', await ethers.provider.getBalance(owner.address))
@@ -132,6 +132,7 @@ describe("DerivioA test", function () {
     await weth.approve(derivioA.address, ethers.constants.MaxUint256);
     await usdc.approve(derivioA.address, ethers.constants.MaxUint256);
     await derivioA.openPosition(
+      owner.address,
       lowerTick,
       upperTick,
       feeTier,

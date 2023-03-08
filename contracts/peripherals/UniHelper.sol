@@ -37,12 +37,12 @@ contract UniHelper {
     function getTokenOrder(address _tokenA, address _tokenB)
         public
         pure
-        returns (IERC20 token0, IERC20 token1)
+        returns (address token0, address token1)
     {
         require(_tokenA != _tokenB, "same token");
         (token0, token1) = _tokenA < _tokenB
-            ? (IERC20(_tokenA), IERC20(_tokenB))
-            : (IERC20(_tokenB), IERC20(_tokenA));
+            ? (_tokenA, _tokenB)
+            : (_tokenB, _tokenA);
     }
 
     function calcAmountRatio(
