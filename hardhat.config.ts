@@ -1,6 +1,8 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import "hardhat-gas-reporter";
 import { ethers } from "hardhat";
+
 
 const {
   ACC_1,
@@ -29,9 +31,9 @@ const config: HardhatUserConfig = {
         blockNumber: 65614482,
       },
       blockGasLimit: 0x1fffffffffff,
-      gasPrice: 0,
+      gasPrice: 0,  
       initialBaseFeePerGas: 0,
-      allowUnlimitedContractSize: true,
+      // allowUnlimitedContractSize: true,
     },
     arbitrum: {
       accounts: [ACC_1],
@@ -39,10 +41,11 @@ const config: HardhatUserConfig = {
     },
   },
 
-  // gasReporter: {
-  //   enabled: process.env.REPORT_GAS !== undefined,
-  //   currency: "USD",
-  // },
+  gasReporter: {
+    enabled: true,
+    currency: "USD",
+    // gasPrice: 1,
+  },
 
   typechain: {
     outDir: "typechain",

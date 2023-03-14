@@ -12,6 +12,7 @@ import {
   ISwapRouter,
   IGmxPositionRouter,
   IGmxFastPriceFeed,
+  DerivioA,
 } from "../typechain";
 import { Signer } from "ethers";
 import { getAddresses, Addresses } from "../src/addresses";
@@ -101,7 +102,8 @@ describe("DerivioA test", function () {
       addresses.GMXRouter,
       addresses.GMXVault,
       weth.address,
-      usdc.address
+      usdc.address,
+      false
     )
 
     const slot0 = await uniswapV3Pool.slot0()
@@ -125,27 +127,29 @@ describe("DerivioA test", function () {
     
     await weth.approve(derivioA.address, ethers.constants.MaxUint256)
     await usdc.approve(derivioA.address, ethers.constants.MaxUint256)
-    await derivioA.openPosition(
-      owner.address,
-      lowerTick,
-      upperTick,
-      feeTier,
-      0,
-      ethers.utils.parseUnits("1000", 6),
-      0,
-    )
     
-    await derivioA.openGMXShort(
-      addresses.USDC,
-      addresses.WETH,
-      ethers.utils.parseUnits("10", 6),
-      ethers.utils.parseUnits("50", 30),
-      0,
-      {value: ethers.utils.parseUnits("0.02", 18)}
-    )
+    const args: DerivioA.PositionArgsStruct = {
+      recipient: owner.address,
+      tickLower: lowerTick,
+      tickUpper: upperTick,
+      feeTier: feeTier,
+      amount0Desired: 0,
+      amount1Desired: ethers.utils.parseUnits("1000", 6),
+      shortRatio: 500000,
+    };
+
+    await derivioA.openPosition(args, {value: ethers.utils.parseUnits("0.02", 18)})
+
+    // await derivioA.openGMXShort2(
+    //   ethers.utils.parseUnits("10", 6),
+    //   ethers.utils.parseUnits("50", 30),
+    //   0,
+    //   {value: ethers.utils.parseUnits("0.02", 18)}
+    // )
     
     // set price updater
     const priceGovAddress = await gmxFastPriceFeed.gov()
+    await setBalance(priceGovAddress, ethers.utils.parseUnits("1000", 30))
     const priceGov = await ethers.getImpersonatedSigner(priceGovAddress)
     await gmxFastPriceFeed.connect(priceGov).setUpdater(owner.address, true)
 
@@ -155,6 +159,7 @@ describe("DerivioA test", function () {
     await setPricesWithBitsAndExecute(gmxFastPriceFeed, owner.address, priceBits, blockTime);
 
     await derivioA.getGmxPosition()
+    // console.log(await derivioA.positionsOf(owner.address))
     let a = 1
   }
 

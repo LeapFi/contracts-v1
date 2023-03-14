@@ -14,8 +14,18 @@ contract DerivioAStorage {
         )
         public
     {
-        require(byToken[pairId].token0.address != address(0), "DerivioAPair exists!");
+        require(address(byToken[pairId]) != address(0), "DerivioAPair exists!");
         
         byToken[pairId] = derivioA;
+    }
+
+    function getAddress (
+        bytes32 pairId
+        )
+        public
+        view
+        returns (address)
+    {
+        return address(byToken[pairId]);
     }
 }

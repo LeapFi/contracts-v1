@@ -4,6 +4,7 @@ pragma solidity 0.8.13;
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interface/gmx/IGmxPositionRouter.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "../interface/gmx/IGmxRouter.sol";
 import "../interface/gmx/IGmxVault.sol";
 import "hardhat/console.sol";
@@ -16,6 +17,7 @@ contract MimGmxVault is ReentrancyGuard {
     address indexToken;
     address[] path = new address[](1);
     bool isLong = false;
+    uint256 private constant gmxDecimals = 30;
 
     IGmxPositionRouter private immutable gmxPositionRouter;
     IGmxRouter private immutable gmxRouter;
@@ -39,19 +41,17 @@ contract MimGmxVault is ReentrancyGuard {
         path[0] = collateralToken;
     }
 
-    function openGMXShort(
+    function openGmxShort(
         uint256 _collateralAmount,
         uint256 _sizeDelta,
         uint256 _acceptPrice
     ) 
         payable
         external
-    { 
-        // IERC20(collateralToken).safeTransferFrom(msg.sender, address(this), _collateralAmount);
+    {
         IERC20(collateralToken).approve(address(gmxRouter), _collateralAmount);
-
         bytes32 referralCode = 0;
-        
+
         gmxPositionRouter.createIncreasePosition{value: msg.value}(
             path, 
             indexToken, 
@@ -65,13 +65,14 @@ contract MimGmxVault is ReentrancyGuard {
             address(0)
         );
 
-        getGMXPosition();
+        getGmxPosition();
     }
 
-    function getGMXPosition() 
+    function getGmxPosition() 
         public
     {
-        (uint256 sizeDelta,,,,,,,) = gmxVault.getPosition(address(this), indexToken, collateralToken, false);
+        (uint256 sizeDelta, uint256 collateral, , , , , , ) = gmxVault.getPosition(address(this), collateralToken, indexToken, false);
         console.log("sizeDelta: %s", sizeDelta);
+        console.log("collateral: %s", collateral);
     }
 }
