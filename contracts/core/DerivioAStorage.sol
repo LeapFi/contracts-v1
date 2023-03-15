@@ -2,11 +2,13 @@
 pragma solidity 0.8.13;
 
 import "./DerivioA.sol";
+import "hardhat/console.sol";
 
 contract DerivioAStorage {
 
     // id => derivioA by token
     mapping(bytes32 => DerivioA) public byToken;
+    bytes32[] pairIds;
 
     function addPair (
         bytes32 pairId,
@@ -14,9 +16,10 @@ contract DerivioAStorage {
         )
         public
     {
-        require(address(byToken[pairId]) != address(0), "DerivioAPair exists!");
+        require(address(byToken[pairId]) == address(0), "DerivioAPair exists!");
         
         byToken[pairId] = derivioA;
+        pairIds.push(pairId);
     }
 
     function getAddress (
@@ -27,5 +30,13 @@ contract DerivioAStorage {
         returns (address)
     {
         return address(byToken[pairId]);
+    }
+
+    function getAllPairIds()
+        public
+        view
+        returns (bytes32[] memory)
+    {
+        return pairIds;
     }
 }

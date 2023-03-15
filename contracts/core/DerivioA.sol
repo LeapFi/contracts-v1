@@ -74,7 +74,7 @@ contract DerivioA is ReentrancyGuard {
         uint24 feeTier;
         uint256 amount0Desired;
         uint256 amount1Desired;
-        uint24 shortRatio;
+        uint24 shortLeverage;
     }
 
     constructor (
@@ -108,11 +108,61 @@ contract DerivioA is ReentrancyGuard {
         _gmxRouter.approvePlugin(address(_gmxPositionRouter));
     }
 
-    function openPosition(PositionArgs memory _args) external payable nonReentrant {
+    function openAS(PositionArgs memory _args) external nonReentrant {
+
+        console.log("openAS......");
+        console.log(address(this));
+        console.log(msg.sender);
+
         _args.amount0Desired = 0;
         IUniswapV3Pool pool = IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), _args.feeTier));
         uniHelper.validateTickSpacing(pool, _args.tickLower, _args.tickUpper);
         (uint160 sqrtPriceX96, int24 tickCurrent, , , , , ) = pool.slot0();
+
+        token0.safeTransferFrom(msg.sender, address(this), _args.amount0Desired);
+        token1.safeTransferFrom(msg.sender, address(this), _args.amount1Desired);
+        
+        uint256 amount1Total = _args.amount1Desired + uniHelper.amount0ToAmount1(_args.amount0Desired, sqrtPriceX96);
+        uint256 amount1Swap = (amount1Total - 
+                amount1Total * uint256(int256(tickCurrent - _args.tickLower)) / uint256(int256(_args.tickUpper - _args.tickLower)));
+
+        console.log("amount1Total: %s", amount1Total);
+        console.log("amount1Swap: %s", amount1Swap);
+
+        _args.amount1Desired = amount1Total - amount1Swap;
+        _args.amount0Desired += swapExactInputSingle(token1, token0, amount1Swap, _args.feeTier);
+
+        uint256 tokenId; uint128 liquidity;
+        (
+            tokenId,
+            liquidity,
+            _args.amount0Desired,
+            _args.amount1Desired 
+        ) = mintLiquidity(_args.tickLower, _args.tickUpper, _args.feeTier, _args.amount0Desired, _args.amount1Desired);
+
+        addPositionInfo(
+            _args.recipient,
+            _args.tickLower, 
+            _args.tickUpper,
+            _args.feeTier,
+            tokenId,
+            liquidity,
+            address(0),
+            0,
+            0
+        );
+    }
+
+    function openAL(PositionArgs memory _args) external payable nonReentrant {
+        _args.amount0Desired = 0;
+        IUniswapV3Pool pool = IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), _args.feeTier));
+        uniHelper.validateTickSpacing(pool, _args.tickLower, _args.tickUpper);
+        (uint160 sqrtPriceX96, int24 tickCurrent, , , , , ) = pool.slot0();
+
+        console.logInt(tickCurrent);
+        console.logInt(_args.tickUpper);
+        console.logInt(_args.tickLower);
+        console.log(uniHelper.amount1ToAmount0(_args.amount1Desired, sqrtPriceX96));
 
         token0.safeTransferFrom(msg.sender, address(this), _args.amount0Desired);
         token1.safeTransferFrom(msg.sender, address(this), _args.amount1Desired);
@@ -131,7 +181,7 @@ contract DerivioA is ReentrancyGuard {
         ) = mintLiquidity(_args.tickLower, _args.tickUpper, _args.feeTier, _args.amount0Desired, _args.amount1Desired);
 
         // uint256 shortDelta = indexDeltaAtLower(args.tickLower, args.tickUpper, liquidity);
-        address minVault = openGMXShort(collateralAmount, shortDelta, 0);
+        address minVault = openGmxShort(collateralAmount, shortDelta, 0);
 
         addPositionInfo(
             _args.recipient,
@@ -303,7 +353,7 @@ contract DerivioA is ReentrancyGuard {
         console.log("amountCollateral: %s", amountCollateral);
     }
 
-    function openGMXShort(
+    function openGmxShort(
         uint256 _collateralAmount,
         uint256 _shortDelta,
         uint256 _acceptPrice
@@ -311,7 +361,7 @@ contract DerivioA is ReentrancyGuard {
         private
         returns (address)
     {
-        console.log("openGMXShort.....");
+        console.log("openGmxShort.....");
         require(_shortDelta >= _collateralAmount, "delta size too samll");
         
         MimGmxVault mimGmxVault = new MimGmxVault(
@@ -339,7 +389,7 @@ contract DerivioA is ReentrancyGuard {
         return address(mimGmxVault);
     }
 
-    function openGMXShort2(
+    function openGmxShort2(
         uint256 _collateralAmount,
         uint256 _sizeDelta,
         uint256 _acceptPrice
@@ -449,6 +499,15 @@ contract DerivioA is ReentrancyGuard {
             _tokenId,
             _minVault
         ));
+    }
+
+    function getNextKey( 
+        address _recipient
+    )
+        public
+        returns (uint256)
+    {
+        return nextId[_recipient];
     }
 
     function mintLiquidity(

@@ -1,71 +1,39 @@
 import { ethers } from "hardhat";
 import hre = require("hardhat");
-import {
-  IGmxPositionRouter,
-} from "../typechain";
-
-export async function executeIncrease(
-  gmxPositionRouter: IGmxPositionRouter, 
-  derivioTrader: any,
-  keeperAddress: any, 
-  ): Promise<void> {
-
-  await hre.network.provider.request({
-      method: "hardhat_impersonateAccount",
-      params: [keeperAddress],
-  });
-
-  console.log("Account Balance");
-  console.log(await ethers.provider.getBalance(keeperAddress));
-
-  console.log("waitingPositionsLength");
-  console.log(await waitingPositionsLength(gmxPositionRouter, true));
-
-  await gmxPositionRouter.executeIncreasePositions(
-    await waitingPositionsLength(gmxPositionRouter, true),
-    derivioTrader.address
-  );
- 
-  await hre.network.provider.request({
-      method: "hardhat_stopImpersonatingAccount",
-      params: [keeperAddress],
-  });
-};
+import { BigNumber as EthersBigNumber } from "@ethersproject/bignumber"
+import { getPriceBits } from "../src/utilities";
 
 export async function setPricesWithBitsAndExecute(
+  account: any,
   gmxFastPriceFeed: any, 
-  priceUpdater: any, 
-  priceBits: any,
-  blockTime: any,
+  executeOrders: number,
   ): Promise<void> {
 
-  // await hre.network.provider.request({
-  //   method: "hardhat_impersonateAccount",
-  //   params: [priceUpdater],
-  // });
+  // set price updater
+  const priceGovAddress = await gmxFastPriceFeed.gov()
+  const priceGov = await ethers.getImpersonatedSigner(priceGovAddress)
+  await gmxFastPriceFeed.connect(priceGov).setUpdater(account, true)
+
+  // fill
+  const blockTime = await getBlockTime()
+  const priceBits = getPriceBits([])
 
   await gmxFastPriceFeed.setPricesWithBitsAndExecute(
     priceBits,
     blockTime,
     9999999999, // _endIndexForIncreasePositions
     9999999999, // _endIndexForDecreasePositions
-    1, // _maxIncreasePositions
+    executeOrders, // _maxIncreasePositions
     0 // _maxDecreasePositions
   );
-
-  // await hre.network.provider.request({
-  //   method: "hardhat_stopImpersonatingAccount",
-  //   params: [priceUpdater],
-  // });
 };
 
-async function waitingPositionsLength(
-  gmxPositionRouter: IGmxPositionRouter, 
-  isIncrease: any, 
-  ): Promise<string> {
 
-  let a = isIncrease ? 1 : 3;
-  return (
-    await gmxPositionRouter.getRequestQueueLengths()
-  )[a].toString();
-};
+async function getBlockTime(): Promise<number> {
+  const block = await ethers.provider.getBlock('latest')
+  return block.timestamp
+}
+
+function toWei(n: string): EthersBigNumber {
+  return ethers.utils.parseEther(n)
+}
