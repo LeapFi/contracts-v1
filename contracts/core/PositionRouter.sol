@@ -16,6 +16,8 @@ import "hardhat/console.sol";
 
 contract PositionRouter is ReentrancyGuard {
 
+    using SafeERC20 for IERC20;
+    
     DerivioAStorage public derivioAStorage;
     uint32 derivioAId = 0;
     
@@ -72,14 +74,26 @@ contract PositionRouter is ReentrancyGuard {
         ));
     }
 
-    function openDerivioA(DerivioA.PositionArgs memory args, address _token0, address _token1)
+    function openDerivioA(DerivioA.PositionArgs memory _args, address _token0, address _token1)
+        payable
         external
         nonReentrant
     {
         bytes32 pairId = getPairId(derivioAId, _token0, _token1);
         address contractAddr = derivioAStorage.getAddress(pairId);
         
-        DerivioA(contractAddr).openPosition(args);
+        IERC20(_token0).safeTransferFrom(msg.sender, address(this), _args.amount0Desired);
+        IERC20(_token1).safeTransferFrom(msg.sender, address(this), _args.amount1Desired);
+
+        IERC20(_token0).approve(contractAddr, _args.amount0Desired);
+        IERC20(_token1).approve(contractAddr, _args.amount1Desired);
+
+        if (_args.shortLeverage == 0) {
+            DerivioA(contractAddr).openAS(_args);
+        }
+        else {
+            DerivioA(contractAddr).openAL{value: msg.value}(_args);
+        }
     }
 
     function getPairId(
@@ -88,5 +102,36 @@ contract PositionRouter is ReentrancyGuard {
         address _token1
     ) public pure returns (bytes32 pairId) {
         return keccak256(abi.encodePacked(_derivioId, _token0, _token1));
+    }
+
+    function getDerivioAddress(
+        uint32 _derivioId,
+        address _token0,
+        address _token1
+    ) public view returns (address) {
+        return derivioAStorage.getAddress(getPairId(_derivioId, _token0, _token1));
+    }
+
+    function positionsOf(
+        address _user
+    )
+        public
+        view
+        returns (DerivioA.ComposedLiquidity[] memory)
+    {
+        bytes32[] memory pairIds = derivioAStorage.getAllPairIds();
+        DerivioA.ComposedLiquidity[] memory result = new DerivioA.ComposedLiquidity[](pairIds.length);
+        
+        for (uint i = 0; i < pairIds.length; i++) {
+
+            DerivioA derivioA = DerivioA(derivioAStorage.getAddress(pairIds[i]));
+            DerivioA.ComposedLiquidity[] memory derivioAPositions = derivioA.positionsOf(_user);
+
+            for (uint j = 0; j < derivioAPositions.length; j++) {
+                result[i] = derivioAPositions[j];
+            }
+        }
+
+        return result;
     }
 }
