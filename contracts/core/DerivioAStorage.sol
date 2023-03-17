@@ -16,7 +16,7 @@ contract DerivioAStorage {
         )
         public
     {
-        require(address(byToken[pairId]) == address(0), "DerivioAPair exists!");
+        require(address(byToken[pairId]) == address(0), "DerivioAPair already exists!");
         
         byToken[pairId] = derivioA;
         pairIds.push(pairId);
@@ -29,6 +29,8 @@ contract DerivioAStorage {
         view
         returns (address)
     {
+        require(address(byToken[pairId]) != address(0), "pairId not exists!");
+
         return address(byToken[pairId]);
     }
 

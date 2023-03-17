@@ -28,7 +28,7 @@ const config: HardhatUserConfig = {
     hardhat: {
       forking: {
         url: `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-        blockNumber: 65614482,
+        blockNumber: 65613482,
       },
       blockGasLimit: 0x1fffffffffff,
       gasPrice: 0,  

@@ -39,8 +39,11 @@ contract DerivioA is ReentrancyGuard {
     IGmxVault private immutable gmxVault;
     address minAddr;
 
-    // user address => composed liqudity positions
-    mapping(address => ComposedLiquidity[]) public composedLiquidity;
+    // user address => positionIds
+    mapping(address => bytes32[]) public positionIds;
+
+    // positionId => ComposedLiquidity
+    mapping(bytes32 => ComposedLiquidity) composedLiquidities;
 
     // user address => nextId
     mapping(address => uint256) public nextId;
@@ -64,7 +67,6 @@ contract DerivioA is ReentrancyGuard {
         address minVault;
         uint256 collateralAmount;
         uint256 shortDelta;
-        bool isFilled;
     }
 
     struct PositionArgs {
@@ -75,6 +77,8 @@ contract DerivioA is ReentrancyGuard {
         uint256 amount0Desired;
         uint256 amount1Desired;
         uint24 shortLeverage;
+        uint256 swapMaxSlippage;
+        uint256 shortMaxSlippage;
     }
 
     constructor (
@@ -108,11 +112,7 @@ contract DerivioA is ReentrancyGuard {
         _gmxRouter.approvePlugin(address(_gmxPositionRouter));
     }
 
-    function openAS(PositionArgs memory _args) external nonReentrant {
-
-        console.log("openAS......");
-        console.log(address(this));
-        console.log(msg.sender);
+    function openAS(PositionArgs memory _args, address _account) external nonReentrant {
 
         _args.amount0Desired = 0;
         IUniswapV3Pool pool = IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), _args.feeTier));
@@ -122,15 +122,16 @@ contract DerivioA is ReentrancyGuard {
         token0.safeTransferFrom(msg.sender, address(this), _args.amount0Desired);
         token1.safeTransferFrom(msg.sender, address(this), _args.amount1Desired);
         
-        uint256 amount1Total = _args.amount1Desired + uniHelper.amount0ToAmount1(_args.amount0Desired, sqrtPriceX96);
-        uint256 amount1Swap = (amount1Total - 
-                amount1Total * uint256(int256(tickCurrent - _args.tickLower)) / uint256(int256(_args.tickUpper - _args.tickLower)));
+        (uint256 amount0Uni, uint256 amount1Uni, uint256 amount0Swap, uint256 amount1Swap, ) = calcOptimalAmount(_args, sqrtPriceX96, tickCurrent, false);
 
-        console.log("amount1Total: %s", amount1Total);
-        console.log("amount1Swap: %s", amount1Swap);
-
-        _args.amount1Desired = amount1Total - amount1Swap;
-        _args.amount0Desired += swapExactInputSingle(token1, token0, amount1Swap, _args.feeTier);
+        if (amount1Swap > 0) {
+            _args.amount1Desired -= amount1Swap;
+            _args.amount0Desired += swapExactInputSingle(token1, token0, amount1Swap, _args.feeTier);
+        }
+        else if (amount0Swap > 0) {
+            _args.amount0Desired -= amount0Swap;
+            _args.amount1Desired += swapExactInputSingle(token0, token1, amount0Swap, _args.feeTier);
+        }
 
         uint256 tokenId; uint128 liquidity;
         (
@@ -151,9 +152,11 @@ contract DerivioA is ReentrancyGuard {
             0,
             0
         );
+
+        returnFund(_account, _args.amount0Desired, _args.amount1Desired);
     }
 
-    function openAL(PositionArgs memory _args) external payable nonReentrant {
+    function openAL(PositionArgs memory _args, address _account) external payable nonReentrant {
         _args.amount0Desired = 0;
         IUniswapV3Pool pool = IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), _args.feeTier));
         uniHelper.validateTickSpacing(pool, _args.tickLower, _args.tickUpper);
@@ -168,7 +171,8 @@ contract DerivioA is ReentrancyGuard {
         token1.safeTransferFrom(msg.sender, address(this), _args.amount1Desired);
         
         // Distribute to optimal amount
-        (uint256 amount0Uni, uint256 amount1Uni, uint256 collateralAmount, uint256 shortDelta) = calcOptimalAmount(_args, sqrtPriceX96, tickCurrent);
+        (uint256 amount0Uni, uint256 amount1Uni, , , uint256 collateralAmount) = calcOptimalAmount(_args, sqrtPriceX96, tickCurrent, true);
+        uint256 shortDelta = collateralAmount;
         (_args.amount0Desired, _args.amount1Desired) = reservedCollateralForShort(_args.amount0Desired, _args.amount1Desired, collateralAmount);
         (_args.amount0Desired, _args.amount1Desired) = swapToOptimalAmount(_args.amount0Desired, _args.amount1Desired, amount0Uni, amount1Uni, collateralAmount, _args.feeTier);
 
@@ -194,6 +198,8 @@ contract DerivioA is ReentrancyGuard {
             collateralAmount,
             shortDelta
         );
+
+        returnFund(_account, _args.amount0Desired, _args.amount1Desired);
     }
 
     function swapToOptimalAmount(
@@ -302,55 +308,37 @@ contract DerivioA is ReentrancyGuard {
     function calcOptimalAmount(
         PositionArgs memory _args,
         uint160 _sqrtPriceX96, 
-        int24 _tickCurrent
+        int24 _tickCurrent,
+        bool _isShort
     )
         public
-        returns (uint256 amount0Uni, uint256 amount1Uni, uint256 amountCollateral, uint256 shortDelta)
+        returns (uint256 amount0Uni, uint256 amount1Uni, uint256 amount0Swap, uint256 amount1Swap, uint256 amountCollateral)
     {
-        console.log("calcOptimalAmount.............");
-        if (!isZeroCollateral) {
+        uint256 amount0Total = _args.amount0Desired + uniHelper.amount1ToAmount0(_args.amount1Desired, _sqrtPriceX96);
 
-            (
-            uint256 amount0TotalSim, 
-            , 
-            , 
-            , 
-            uint256 amountLowerSim,
-            ) = uniHelper.ratioAtTick(_tickCurrent, _args.tickLower, _args.tickUpper, false);
-
-            uint256 amount0Total = _args.amount0Desired + uniHelper.amount1ToAmount0(_args.amount1Desired, _sqrtPriceX96);
+        if (_isShort) {
+            (uint256 amount0TotalSim, , , , uint256 amountLowerSim, ) = uniHelper.ratioAtTick(_tickCurrent, _args.tickLower, _args.tickUpper, false);
             amountCollateral = amount0Total * amountLowerSim / amount0TotalSim;
             amount0Total -= amountCollateral;
 
-            uint256 amount0Swap = (amount0Total - 
-                amount0Total * uint256(int256(_args.tickUpper - _tickCurrent)) / uint256(int256(_args.tickUpper - _args.tickLower)));
+            if (!isZeroCollateral) {
+                amountCollateral = uniHelper.amount0ToAmount1(amountCollateral, _sqrtPriceX96);
+            }
+        }
 
-            amount0Uni = amount0Total - amount0Swap;
-            amount1Uni = uniHelper.amount0ToAmount1(amount0Swap, _sqrtPriceX96);
+        amount0Uni = amount0Total * uint256(int256(_args.tickUpper - _tickCurrent)) / uint256(int256(_args.tickUpper - _args.tickLower));
+        amount1Uni = uniHelper.amount0ToAmount1(amount0Total - amount0Uni, _sqrtPriceX96);
 
-            amountCollateral = uniHelper.amount0ToAmount1(amountCollateral, _sqrtPriceX96);
-            shortDelta = amountCollateral;
-
-            console.log("amount0Uni: %s", amount0Uni);
-            console.log("amount1Uni: %s", amount1Uni);
-            console.log("amountCollateral: %s", amountCollateral);
-            console.log("shortDelta: %s", shortDelta);
+        // Calculate which amount should be swap to optimal ratio
+        if (_args.amount0Desired > amount0Uni) {
+            amount0Swap = _args.amount0Desired - amount0Uni;
+        }
+        else if (_args.amount1Desired > amount1Uni) {
+            amount1Swap = _args.amount1Desired - amount1Uni;
         }
         else {
-            uint256 amount1Total = _args.amount1Desired + uniHelper.amount0ToAmount1(_args.amount0Desired, _sqrtPriceX96);
-            amountCollateral = amount1Total / 1e6;
-            amount1Total -= amountCollateral;
-
-            uint256 amount1Swap = (amount1Total - 
-                amount1Total * uint256(int256(_tickCurrent - _args.tickLower)) / uint256(int256(_args.tickUpper - _args.tickLower)));
-
-            amount1Uni = amount1Total - amount1Swap;
-            amount0Uni = uniHelper.amount1ToAmount0(amount1Swap, _sqrtPriceX96);
+            // Optimal amount already
         }
-
-        console.log("amount0Uni: %s", amount0Uni);
-        console.log("amount1Uni: %s", amount1Uni);
-        console.log("amountCollateral: %s", amountCollateral);
     }
 
     function openGmxShort(
@@ -466,7 +454,8 @@ contract DerivioA is ReentrancyGuard {
         position.uniV3Position = uniV3Position;
         position.gmxPosition = gmxPosition;
 
-        composedLiquidity[_recipient].push(position);
+        positionIds[_recipient].push(position.positionKey);
+        composedLiquidities[position.positionKey] = position;
     }
 
     function getGmxPosition() 
@@ -477,13 +466,23 @@ contract DerivioA is ReentrancyGuard {
     }
 
     function positionsOf(
-        address _user
+        bytes32 _positionId
     )
         public
         view
-        returns (ComposedLiquidity[] memory)
+        returns (ComposedLiquidity memory)
     {
-        return composedLiquidity[_user];
+        return composedLiquidities[_positionId];
+    }
+
+    function getAllPositionIds(
+        address _account
+    )
+        public
+        view
+        returns (bytes32[] memory)
+    {
+        return positionIds[_account];
     }
 
     function getNextPositionKey( 
@@ -590,5 +589,57 @@ contract DerivioA is ReentrancyGuard {
             });
 
         amountOut = swapRouter.exactInputSingle(params);
+    }
+    
+    /// @notice Collects the fees associated with provided liquidity
+    /// @dev The contract must hold the erc721 token before it can collect fees
+    /// @param _tokenId The id of the erc721 token
+    /// @return amount0 The amount of fees collected in token0
+    /// @return amount1 The amount of fees collected in token1
+    function collectAllFees(
+        address _account, 
+        address _recipient, 
+        bytes32 _positionId, 
+        uint256 _tokenId
+        ) 
+        external 
+        returns (uint256 amount0, uint256 amount1) 
+    {
+        // Get position details
+        ( , , , , , int24 tickLower, int24 tickUpper, uint128 liquidity, , , ,) = positionManager.positions(_tokenId);
+        ComposedLiquidity memory composedLiquidity = positionsOf(_positionId);
+
+        // Calculate uncollected fees
+        IUniswapV3Pool pool = IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), composedLiquidity.uniV3Position.feeTier));
+        (, , , uint256 fees0, uint256 fees1) = pool.positions(keccak256(abi.encodePacked(address(this), tickLower, tickUpper)));
+
+        // Calculate uncollected fees per account
+        uint128 fee0 = uint128(fees0) * composedLiquidity.uniV3Position.liquidity / liquidity;
+        uint128 fee1 = uint128(fees1) * composedLiquidity.uniV3Position.liquidity / liquidity;
+
+        // set amount0Max and amount1Max to uint256.max to collect all fees
+        // alternatively can set recipient to msg.sender and avoid another transaction in `sendToOwner`
+        INonfungiblePositionManager.CollectParams memory params =
+            INonfungiblePositionManager.CollectParams({
+                tokenId: _tokenId,
+                recipient: address(this),
+                amount0Max: fee0,
+                amount1Max: fee1
+            });
+
+        (amount0, amount1) = positionManager.collect(params);
+
+        returnFund(_recipient, amount0, amount1);
+    }
+
+    function returnFund(
+        address _account, 
+        uint256 _amount0,
+        uint256 _amount1
+        ) 
+        internal 
+    {
+        token0.safeTransfer(_account, _amount0);
+        token1.safeTransfer(_account, _amount1);
     }
 }

@@ -81,7 +81,7 @@ contract PositionRouter is ReentrancyGuard {
     {
         bytes32 pairId = getPairId(derivioAId, _token0, _token1);
         address contractAddr = derivioAStorage.getAddress(pairId);
-        
+
         IERC20(_token0).safeTransferFrom(msg.sender, address(this), _args.amount0Desired);
         IERC20(_token1).safeTransferFrom(msg.sender, address(this), _args.amount1Desired);
 
@@ -89,10 +89,10 @@ contract PositionRouter is ReentrancyGuard {
         IERC20(_token1).approve(contractAddr, _args.amount1Desired);
 
         if (_args.shortLeverage == 0) {
-            DerivioA(contractAddr).openAS(_args);
+            DerivioA(contractAddr).openAS(_args, msg.sender);
         }
         else {
-            DerivioA(contractAddr).openAL{value: msg.value}(_args);
+            DerivioA(contractAddr).openAL{value: msg.value}(_args, msg.sender);
         }
     }
 
@@ -113,7 +113,7 @@ contract PositionRouter is ReentrancyGuard {
     }
 
     function positionsOf(
-        address _user
+        address _account
     )
         public
         view
@@ -125,10 +125,10 @@ contract PositionRouter is ReentrancyGuard {
         for (uint i = 0; i < pairIds.length; i++) {
 
             DerivioA derivioA = DerivioA(derivioAStorage.getAddress(pairIds[i]));
-            DerivioA.ComposedLiquidity[] memory derivioAPositions = derivioA.positionsOf(_user);
+            bytes32[] memory derivioAPositions = derivioA.getAllPositionIds(_account);
 
             for (uint j = 0; j < derivioAPositions.length; j++) {
-                result[i] = derivioAPositions[j];
+                result[i] = derivioA.positionsOf(derivioAPositions[j]);
             }
         }
 
