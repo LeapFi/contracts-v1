@@ -33,7 +33,7 @@ const config: HardhatUserConfig = {
       blockGasLimit: 0x1fffffffffff,
       gasPrice: 0,  
       initialBaseFeePerGas: 0,
-      // allowUnlimitedContractSize: true,
+      allowUnlimitedContractSize: true,
     },
     arbitrum: {
       accounts: [ACC_1],

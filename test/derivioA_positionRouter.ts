@@ -114,6 +114,8 @@ describe("DerivioA test", function () {
           amount0Desired: 0,
           amount1Desired: ethers.utils.parseUnits("1000", 6),
           shortLeverage: 0,
+          swapMaxSlippage: 0,
+          shortMaxSlippage: 0,
         },
         weth.address,
         usdc.address,
@@ -143,6 +145,8 @@ describe("DerivioA test", function () {
           amount0Desired: 0,
           amount1Desired: ethers.utils.parseUnits("1000", 6),
           shortLeverage: 500000,
+          swapMaxSlippage: 0,
+          shortMaxSlippage: 0,
         },
         weth.address,
         usdc.address,
@@ -150,7 +154,7 @@ describe("DerivioA test", function () {
       )
 
       await setPricesWithBitsAndExecute(owner.address, gmxFastPriceFeed, 1)
-      // await derivioA.getGmxPosition()
+      console.log(await positionRouter.positionsOf(owner.address))
     });
 
   });

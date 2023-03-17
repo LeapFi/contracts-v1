@@ -97,8 +97,8 @@ describe("DerivioA test", function () {
       const slot0 = await uniswapV3Pool.slot0()
       const tickSpacing = await uniswapV3Pool.tickSpacing()
 
-      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 250 * tickSpacing
-      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 100 * tickSpacing
+      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 220 * tickSpacing
+      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 160 * tickSpacing
       
       await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6)
       
@@ -113,7 +113,10 @@ describe("DerivioA test", function () {
         amount0Desired: 0,
         amount1Desired: ethers.utils.parseUnits("1000", 6),
         shortLeverage: 0,
-      })
+        swapMaxSlippage: 0,
+        shortMaxSlippage: 0,
+      }, 
+      owner.address)
     });
 
     it("#2 Should normally open DerivioAL", async function () {
@@ -136,7 +139,10 @@ describe("DerivioA test", function () {
         amount0Desired: 0,
         amount1Desired: ethers.utils.parseUnits("1000", 6),
         shortLeverage: 500000,
+        swapMaxSlippage: 0,
+        shortMaxSlippage: 0,
       }, 
+      owner.address,
       {value: ethers.utils.parseUnits("0.02", 18)})
 
       await setPricesWithBitsAndExecute(owner.address, gmxFastPriceFeed, 1)
