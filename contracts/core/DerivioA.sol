@@ -122,16 +122,8 @@ contract DerivioA is ReentrancyGuard {
         token0.safeTransferFrom(msg.sender, address(this), _args.amount0Desired);
         token1.safeTransferFrom(msg.sender, address(this), _args.amount1Desired);
         
-        (uint256 amount0Uni, uint256 amount1Uni, uint256 amount0Swap, uint256 amount1Swap, ) = calcOptimalAmount(_args, sqrtPriceX96, tickCurrent, false);
-
-        if (amount1Swap > 0) {
-            _args.amount1Desired -= amount1Swap;
-            _args.amount0Desired += swapExactInputSingle(token1, token0, amount1Swap, _args.feeTier);
-        }
-        else if (amount0Swap > 0) {
-            _args.amount0Desired -= amount0Swap;
-            _args.amount1Desired += swapExactInputSingle(token0, token1, amount0Swap, _args.feeTier);
-        }
+        (uint256 amount0Uni, uint256 amount1Uni, ) = calcOptimalAmount(_args, sqrtPriceX96, tickCurrent, false);
+        (_args.amount0Desired, _args.amount1Desired) = swapToOptimalAmount(_args.amount0Desired, _args.amount1Desired, amount0Uni, amount1Uni, 0, _args.feeTier);
 
         uint256 tokenId; uint128 liquidity;
         (
@@ -157,23 +149,16 @@ contract DerivioA is ReentrancyGuard {
     }
 
     function openAL(PositionArgs memory _args, address _account) external payable nonReentrant {
+
         _args.amount0Desired = 0;
         IUniswapV3Pool pool = IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), _args.feeTier));
         uniHelper.validateTickSpacing(pool, _args.tickLower, _args.tickUpper);
         (uint160 sqrtPriceX96, int24 tickCurrent, , , , , ) = pool.slot0();
 
-        console.logInt(tickCurrent);
-        console.logInt(_args.tickUpper);
-        console.logInt(_args.tickLower);
-        console.log(uniHelper.amount1ToAmount0(_args.amount1Desired, sqrtPriceX96));
-
         token0.safeTransferFrom(msg.sender, address(this), _args.amount0Desired);
         token1.safeTransferFrom(msg.sender, address(this), _args.amount1Desired);
         
-        // Distribute to optimal amount
-        (uint256 amount0Uni, uint256 amount1Uni, , , uint256 collateralAmount) = calcOptimalAmount(_args, sqrtPriceX96, tickCurrent, true);
-        uint256 shortDelta = collateralAmount;
-        (_args.amount0Desired, _args.amount1Desired) = reservedCollateralForShort(_args.amount0Desired, _args.amount1Desired, collateralAmount);
+        (uint256 amount0Uni, uint256 amount1Uni, uint256 collateralAmount) = calcOptimalAmount(_args, sqrtPriceX96, tickCurrent, true);
         (_args.amount0Desired, _args.amount1Desired) = swapToOptimalAmount(_args.amount0Desired, _args.amount1Desired, amount0Uni, amount1Uni, collateralAmount, _args.feeTier);
 
         uint256 tokenId; uint128 liquidity;
@@ -184,7 +169,7 @@ contract DerivioA is ReentrancyGuard {
             _args.amount1Desired 
         ) = mintLiquidity(_args.tickLower, _args.tickUpper, _args.feeTier, _args.amount0Desired, _args.amount1Desired);
 
-        // uint256 shortDelta = indexDeltaAtLower(args.tickLower, args.tickUpper, liquidity);
+        uint256 shortDelta = collateralAmount * 1;
         address minVault = openGmxShort(collateralAmount, shortDelta, 0);
 
         addPositionInfo(
@@ -211,98 +196,42 @@ contract DerivioA is ReentrancyGuard {
         uint24 _feeTier
     )
         private
-        returns (uint256 _amount0Left, uint256 _amount1Left)
+        returns (uint256 _amount0Out, uint256 _amount1Out)
     {
-        // uint256 amountTotal;
-        // if (!isZeroCollateral) {
-        //     amountTotal = _amount1Uni + _collateralAmount;
-        // }
-        // else {
-        //     amountTotal = _amount0Uni + _collateralAmount;
-        // }
+        if (isZeroCollateral) {
+            _amount0Uni += _collateralAmount;
+        }
+        else {
+            _amount1Uni += _collateralAmount;
+        }
 
+        // Calculate which amount should be swap to optimal ratio
+        uint256 amount0Swap; uint256 amount1Swap;
+        if (_amount0Desired > _amount0Uni) {
+            amount0Swap = _amount0Desired - _amount0Uni;
+        }
+        else if (_amount1Desired > _amount1Uni) {
+            amount1Swap = _amount1Desired - _amount1Uni;
+        }
 
-        if (_amount1Desired > _amount1Uni) {
-
-            uint256 amount1Swap = _amount1Desired - _amount1Uni;
-            
+        if (amount1Swap > 0) {
             _amount1Desired -= amount1Swap;
             _amount0Desired += swapExactInputSingle(token1, token0, amount1Swap, _feeTier);
         }
-        // Else continue
+        else if (amount0Swap > 0) {
+            _amount0Desired -= amount0Swap;
+            _amount1Desired += swapExactInputSingle(token0, token1, amount0Swap, _feeTier);
+        }
 
-        
-        _amount0Left = _amount0Desired;
-        _amount1Left = _amount1Desired;
-    }
-
-    function indexDeltaAtLower(
-        int24 _tickLower, 
-        int24 _tickUpper,
-        uint128 _liquidity
-    )
-        private
-        returns (uint256 shortDelta)
-    {
-        console.log("indexDeltaAtLower......");
-
-        if (!isZeroCollateral) {
-
-            uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(_tickLower);
-            (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(
-                sqrtPriceX96,
-                sqrtPriceX96,
-                TickMath.getSqrtRatioAtTick(_tickUpper),
-                _liquidity
-            );
-            console.log("amount0: %s", amount0);
-            console.log("amount1: %s", amount1);
-
-            shortDelta = uniHelper.amount0ToAmount1(amount0, sqrtPriceX96);
-            console.log("shortDelta: %s", shortDelta);
+        if (isZeroCollateral) {
+            _amount0Desired -= _collateralAmount;
         }
         else {
-            uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(_tickUpper);
-            (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(
-                sqrtPriceX96,
-                TickMath.getSqrtRatioAtTick(_tickLower),
-                sqrtPriceX96,
-                _liquidity
-            );
-
-            shortDelta = uniHelper.amount1ToAmount0(amount1, sqrtPriceX96);
+            _amount1Desired -= _collateralAmount;
         }
-    }
 
-    function reservedCollateralForShort(
-        uint256 _amount0Input, 
-        uint256 _amount1Input,
-        uint256 _collateralAmount
-    )
-        private
-        returns (uint256 amount0Uni, uint256 amount1Uni)
-    {
-        console.log("reservedCollateralForShort..");
-
-        amount0Uni = _amount0Input;
-        amount1Uni = _amount1Input;
-
-        if (!isZeroCollateral) {
-            if (_amount1Input >= _collateralAmount) {
-                amount1Uni -= _collateralAmount;
-            }
-            else {
-                amount1Uni = 0;
-
-                // Swap amount1 to amount0 for collateral
-                // 
-            }
-        }
-        // (_collateralToken == address(token1))
-        // continue
-
-        console.log("amount0Uni: %s", amount0Uni);
-        console.log("amount1Uni: %s", amount1Uni);
+        _amount0Out = _amount0Desired;
+        _amount1Out = _amount1Desired;
     }
 
     function calcOptimalAmount(
@@ -312,7 +241,7 @@ contract DerivioA is ReentrancyGuard {
         bool _isShort
     )
         public
-        returns (uint256 amount0Uni, uint256 amount1Uni, uint256 amount0Swap, uint256 amount1Swap, uint256 amountCollateral)
+        returns (uint256 amount0Uni, uint256 amount1Uni, uint256 amountCollateral)
     {
         uint256 amount0Total = _args.amount0Desired + uniHelper.amount1ToAmount0(_args.amount1Desired, _sqrtPriceX96);
 
@@ -326,19 +255,15 @@ contract DerivioA is ReentrancyGuard {
             }
         }
 
+        if (_tickCurrent > _args.tickUpper) {
+            _tickCurrent = _args.tickUpper;
+        }
+        else if (_tickCurrent < _args.tickLower) {
+            _tickCurrent = _args.tickLower;
+        }
+
         amount0Uni = amount0Total * uint256(int256(_args.tickUpper - _tickCurrent)) / uint256(int256(_args.tickUpper - _args.tickLower));
         amount1Uni = uniHelper.amount0ToAmount1(amount0Total - amount0Uni, _sqrtPriceX96);
-
-        // Calculate which amount should be swap to optimal ratio
-        if (_args.amount0Desired > amount0Uni) {
-            amount0Swap = _args.amount0Desired - amount0Uni;
-        }
-        else if (_args.amount1Desired > amount1Uni) {
-            amount1Swap = _args.amount1Desired - amount1Uni;
-        }
-        else {
-            // Optimal amount already
-        }
     }
 
     function openGmxShort(
