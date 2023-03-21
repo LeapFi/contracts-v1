@@ -205,7 +205,6 @@ contract DerivioA is ReentrancyGuard {
             _amount1Uni += _collateralAmount;
         }
 
-        // Calculate which amount should be swap to optimal ratio
         uint256 amount0Swap; uint256 amount1Swap;
         if (_amount0Desired > _amount0Uni) {
             amount0Swap = _amount0Desired - _amount0Uni;
