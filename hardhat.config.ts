@@ -8,7 +8,8 @@ const {
   ACC_1,
   ACC_2,
   ETHERSCAN_API_KEY,
-  ALCHEMY_KEY
+  ALCHEMY_KEY,
+  INFURA_KEY
 } = require("./env.json")
 
 const config: HardhatUserConfig = {
@@ -25,16 +26,26 @@ const config: HardhatUserConfig = {
   },
 
   networks: {
+
     hardhat: {
+      chainId: 42161,
       forking: {
-        url: `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-        blockNumber: 65613482,
+        // url: `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
+        // url: `https://arbitrum-mainnet.infura.io/v3/${INFURA_KEY}`,
+        url: `http://172.104.111.236:8545`,
+        blockNumber: 71602557,
       },
       blockGasLimit: 0x1fffffffffff,
       gasPrice: 0,  
       initialBaseFeePerGas: 0,
       allowUnlimitedContractSize: true,
     },
+
+    arbitrumForked: {
+      accounts: [ACC_1],
+      url: `http://172.104.111.236:8545`,
+    },
+
     arbitrum: {
       accounts: [ACC_1],
       url: `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,

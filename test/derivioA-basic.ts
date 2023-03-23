@@ -23,7 +23,7 @@ import { setPricesWithBitsAndExecute } from "../src/executeGmxPosition";
 
 describe("DerivioA test", function () {
   
-  let feeTier = 500;
+  let feeTier = 3000;
   
   let owner: any;
   let otherAccount: any;
@@ -45,7 +45,11 @@ describe("DerivioA test", function () {
   beforeEach("Setting contracts", async function () {
 
     // Contracts are deployed using the first signer/account by default
-    [owner, otherAccount] = await ethers.getSigners();
+    [owner, otherAccount] = await ethers.getSigners(); 
+    console.log('owner.addr: ' + owner.address)
+
+    const balance = await ethers.provider.getBalance(owner.address);
+    console.log("Balance:", ethers.utils.formatEther(balance));
 
     uniswapV3Factory = (await ethers.getContractAt("IUniswapV3Factory", addresses.UniswapV3Factory)) as IUniswapV3Factory;
     uniswapV3Pool = (await ethers.getContractAt("IUniswapV3Pool", await uniswapV3Factory.getPool(addresses.USDC, addresses.WETH, feeTier))) as IUniswapV3Pool;
@@ -123,8 +127,8 @@ describe("DerivioA test", function () {
       const slot0 = await uniswapV3Pool.slot0()
       const tickSpacing = await uniswapV3Pool.tickSpacing()
 
-      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 250 * tickSpacing
-      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 100 * tickSpacing
+      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 25 * tickSpacing
+      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing
       
       await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6)
       
@@ -146,7 +150,7 @@ describe("DerivioA test", function () {
       {value: ethers.utils.parseUnits("0.02", 18)})
 
       await setPricesWithBitsAndExecute(owner.address, gmxFastPriceFeed, 1)
-      // await derivioA.getGmxPosition()
+      await derivioA.getGmxPosition()
     });
 
   });
