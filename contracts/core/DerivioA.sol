@@ -28,6 +28,7 @@ contract DerivioA is ReentrancyGuard {
     bool immutable isZeroCollateral;
     uint128 private constant precision = 1e10;
     uint256 private constant gmxDecimals = 30;
+    uint256 private constant FixedPoint128_Q128 = 0x100000000000000000000000000000000;
 
     UniHelper private immutable uniHelper;
     IUniswapV3Factory private immutable uniFactory;
@@ -61,6 +62,14 @@ contract DerivioA is ReentrancyGuard {
         uint24 feeTier;
         uint256 tokenId;
         uint128 liquidity;
+        FeeGrowthData feeGrowthData;
+    }
+
+    struct FeeGrowthData {
+        uint256 feeGrowthInside0X128;
+        uint256 feeGrowthInside1X128;
+        uint256 feeGrowthCalculated0X128;
+        uint256 feeGrowthCalculated1X128;
     }
 
     struct GmxPosition {
@@ -360,6 +369,7 @@ contract DerivioA is ReentrancyGuard {
     )
         private
     {
+
         UniV3Position memory uniV3Position;
         uniV3Position.tickLower = _tickLower;
         uniV3Position.tickUpper = _tickUpper;
@@ -380,6 +390,38 @@ contract DerivioA is ReentrancyGuard {
 
         positionIds[_recipient].push(position.positionKey);
         composedLiquidities[position.positionKey] = position;
+
+        updateUniPosition(position.positionKey, _tickLower, _tickUpper);
+    }
+
+    function updateUniPosition(
+        bytes32 _positionKey,
+        int24 _tickLowerCalldata,
+        int24 _tickUpperCalldata
+    ) private {
+        ComposedLiquidity storage composedLiquidity = composedLiquidities[_positionKey];
+
+        if (_tickLowerCalldata != 0 || _tickUpperCalldata != 0) {
+            composedLiquidity.uniV3Position.tickLower = _tickLowerCalldata;
+            composedLiquidity.uniV3Position.tickUpper = _tickUpperCalldata;
+        }
+
+        bytes32 uniKey = keccak256(abi.encodePacked(address(this), composedLiquidity.uniV3Position.tickLower, composedLiquidity.uniV3Position.tickUpper));
+        (
+            ,
+            ,
+            ,
+            composedLiquidity.uniV3Position.feeGrowthData.feeGrowthInside0X128,
+            composedLiquidity.uniV3Position.feeGrowthData.feeGrowthInside1X128
+        ) =
+            IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), composedLiquidity.uniV3Position.feeTier)).positions(uniKey);
+
+        (
+            composedLiquidity.uniV3Position.feeGrowthData.feeGrowthCalculated0X128, 
+            composedLiquidity.uniV3Position.feeGrowthData.feeGrowthCalculated1X128
+        ) = 
+            computeFeeGrowth(_positionKey);
+
     }
 
     function getGmxPosition() 
@@ -521,39 +563,136 @@ contract DerivioA is ReentrancyGuard {
     /// @return amount0 The amount of fees collected in token0
     /// @return amount1 The amount of fees collected in token1
     function collectAllFees(
-        address _account, 
         address _recipient, 
-        bytes32 _positionId, 
+        bytes32 _positionKey, 
         uint256 _tokenId
         ) 
         external 
         returns (uint256 amount0, uint256 amount1) 
     {
+        (uint256 fee0, uint256 fee1) = unCollectedFee(_positionKey);
+
+        if (fee0 !=0 || fee1 != 0) {
+            // alternatively can set recipient to msg.sender and avoid another transaction in `sendToOwner`
+            INonfungiblePositionManager.CollectParams memory params =
+                INonfungiblePositionManager.CollectParams({
+                    tokenId: _tokenId,
+                    recipient: address(this),
+                    amount0Max: uint128(fee0),
+                    amount1Max: uint128(fee1)
+                });
+
+            (amount0, amount1) = positionManager.collect(params);
+            console.log("collectAllFees..");
+            console.log("amount0: ", amount0);
+            console.log("amount1: ", amount1);
+
+            updateUniPosition(_positionKey, 0, 0);
+            returnFund(_recipient, amount0, amount1);
+        }
+    }
+
+    function unCollectedFee(bytes32 _positionKey) 
+        public 
+        view 
+        returns (uint256 fee0, uint256 fee1) 
+    {
+        (uint256 feeGrowth0, uint256 feeGrowth1) = computeFeeGrowth(_positionKey);
+
+        ComposedLiquidity memory composedLiquidity = positionsOf(_positionKey);
+
+        fee0 = feeGrowth0 - composedLiquidity.uniV3Position.feeGrowthData.feeGrowthCalculated0X128;
+        fee1 = feeGrowth1 - composedLiquidity.uniV3Position.feeGrowthData.feeGrowthCalculated1X128;
+
+        console.log("unCollectedFee.....");
+        console.log("fee0: ", fee0);
+        console.log("fee1: ", fee1);
+    }
+
+    function computeFeeGrowth(bytes32 _positionKey) 
+        public 
+        view 
+        returns (uint256 fee0, uint256 fee1) 
+    {
+        (
+            IUniswapV3Pool pool,
+            int24 tickLower,
+            int24 tickUpper,
+            int24 tickCurrent,
+            uint256 feeGrowthOutside0Lower,
+            uint256 feeGrowthOutside1Lower,
+            uint256 feeGrowthOutside0Upper,
+            uint256 feeGrowthOutside1Upper
+        ) = getUncollectedFeeData(_positionKey);
+
+        ComposedLiquidity memory composedLiquidity = positionsOf(_positionKey);
+
+        fee0 = computeUncollectedFees(
+            pool.feeGrowthGlobal0X128(),
+            feeGrowthOutside0Lower,
+            feeGrowthOutside0Upper,
+            composedLiquidity.uniV3Position.feeGrowthData.feeGrowthInside0X128,
+            tickCurrent,
+            tickLower,
+            tickUpper,
+            composedLiquidity.uniV3Position.liquidity
+        );
+
+        fee1 = computeUncollectedFees(
+            pool.feeGrowthGlobal1X128(),
+            feeGrowthOutside1Lower,
+            feeGrowthOutside1Upper,
+            composedLiquidity.uniV3Position.feeGrowthData.feeGrowthInside1X128,
+            tickCurrent,
+            tickLower,
+            tickUpper,
+            composedLiquidity.uniV3Position.liquidity
+        );
+    }
+    
+    function getUncollectedFeeData(bytes32 _positionKey) 
+        public
+        view
+        returns (
+            IUniswapV3Pool pool,
+            int24 tickLower,
+            int24 tickUpper,
+            int24 tickCurrent,
+            uint256 feeGrowthOutside0Lower,
+            uint256 feeGrowthOutside1Lower,
+            uint256 feeGrowthOutside0Upper,
+            uint256 feeGrowthOutside1Upper
+        )
+    {
         // Get position details
-        ( , , , , , int24 tickLower, int24 tickUpper, uint128 liquidity, , , ,) = positionManager.positions(_tokenId);
-        ComposedLiquidity memory composedLiquidity = positionsOf(_positionId);
+        ComposedLiquidity memory composedLiquidity = positionsOf(_positionKey);
+        ( , , , , , tickLower, tickUpper, , , , ,) = positionManager.positions(composedLiquidity.uniV3Position.tokenId);
 
         // Calculate uncollected fees
-        IUniswapV3Pool pool = IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), composedLiquidity.uniV3Position.feeTier));
-        (, , , uint256 fees0, uint256 fees1) = pool.positions(keccak256(abi.encodePacked(address(this), tickLower, tickUpper)));
+        pool = IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), composedLiquidity.uniV3Position.feeTier));
 
-        // Calculate uncollected fees per account
-        uint128 fee0 = uint128(fees0) * composedLiquidity.uniV3Position.liquidity / liquidity;
-        uint128 fee1 = uint128(fees1) * composedLiquidity.uniV3Position.liquidity / liquidity;
+        (, , feeGrowthOutside0Lower, feeGrowthOutside1Lower, , , ,) = pool.ticks(tickLower);
+        (, , feeGrowthOutside0Upper, feeGrowthOutside1Upper, , , ,) = pool.ticks(tickUpper);
 
-        // set amount0Max and amount1Max to uint256.max to collect all fees
-        // alternatively can set recipient to msg.sender and avoid another transaction in `sendToOwner`
-        INonfungiblePositionManager.CollectParams memory params =
-            INonfungiblePositionManager.CollectParams({
-                tokenId: _tokenId,
-                recipient: address(this),
-                amount0Max: fee0,
-                amount1Max: fee1
-            });
+        (, tickCurrent, , , , , ) = pool.slot0();
+    }
 
-        (amount0, amount1) = positionManager.collect(params);
+    function computeUncollectedFees(
+        uint256 feeGrowthGlobalX128,
+        uint256 feeGrowthOutsideLowerX128,
+        uint256 feeGrowthOutsideUpperX128,
+        uint256 feeGrowthInsideLastX128,
+        int24 tick,
+        int24 tickLower,
+        int24 tickUpper,
+        uint128 liquidity
+    ) private view returns (uint256 fee) {
+        
+        uint256 feeGrowthBelowX128 = (tick >= tickLower) ? feeGrowthOutsideLowerX128 : (feeGrowthGlobalX128 - feeGrowthOutsideLowerX128);
+        uint256 feeGrowthAboveX128 = (tick < tickUpper) ? feeGrowthOutsideUpperX128 : (feeGrowthGlobalX128 - feeGrowthOutsideUpperX128);
 
-        returnFund(_recipient, amount0, amount1);
+        uint256 feeGrowthInsideX128 = feeGrowthGlobalX128 - feeGrowthBelowX128 - feeGrowthAboveX128;
+        fee = FullMath.mulDiv(liquidity, feeGrowthInsideX128 - feeGrowthInsideLastX128, FixedPoint128_Q128);
     }
 
     function returnFund(
