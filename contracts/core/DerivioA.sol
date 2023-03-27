@@ -68,8 +68,8 @@ contract DerivioA is ReentrancyGuard {
     struct FeeGrowthData {
         uint256 feeGrowthInside0X128;
         uint256 feeGrowthInside1X128;
-        uint256 feeGrowthCalculated0X128;
-        uint256 feeGrowthCalculated1X128;
+        uint256 feeGrowthLast0X128;
+        uint256 feeGrowthLast1X128;
     }
 
     struct GmxPosition {
@@ -176,7 +176,8 @@ contract DerivioA is ReentrancyGuard {
             liquidity,
             _args.amount0Desired,
             _args.amount1Desired 
-        ) = mintLiquidity(_args.tickLower, _args.tickUpper, _args.feeTier, _args.amount0Desired, _args.amount1Desired);
+        ) = 
+            mintLiquidity(_args.tickLower, _args.tickUpper, _args.feeTier, _args.amount0Desired, _args.amount1Desired);
 
         uint256 shortDelta = collateralAmount * 1;
         address minVault = openGmxShort(collateralAmount, shortDelta, 0);
@@ -310,52 +311,6 @@ contract DerivioA is ReentrancyGuard {
         return address(mimGmxVault);
     }
 
-    function openGmxShort2(
-        uint256 _collateralAmount,
-        uint256 _sizeDelta,
-        uint256 _acceptPrice
-    ) 
-        payable
-        external
-    { 
-        token1.safeTransferFrom(msg.sender, address(this), _collateralAmount);
-        IERC20(collateralToken).approve(address(gmxRouter), _collateralAmount);
-
-        address[] memory path = new address[](1);
-        path[0] = address(token1);
-        bool isLong = false;
-        bytes32 referralCode = 0;
-
-        console.log("path[0]: %s", path[0]);
-        console.log("indexToken %s", address(indexToken));
-        console.log("_collateralAmount %s", _collateralAmount);
-        console.log("_sizeDelta %s", _sizeDelta);
-        console.log("isLong %s", isLong);
-
-        gmxPositionRouter.createIncreasePosition{value: msg.value}(
-            path, 
-            address(indexToken), 
-            _collateralAmount,
-            0,
-            _sizeDelta, 
-            isLong, 
-            _acceptPrice, 
-            2e16,
-            referralCode,
-            address(0)
-        );
-
-        getGmxPosition2();
-    }
-
-    function getGmxPosition2() 
-        public
-    {
-        (uint256 sizeDelta, uint256 collateral, , , , , , ) = gmxVault.getPosition(address(this), address(collateralToken), address(indexToken), false);
-        console.log("sizeDelta: %s", sizeDelta);
-        console.log("collateral: %s", collateral);
-    }
-
     function addPositionInfo(
         address _recipient,
         int24 _tickLower, 
@@ -391,21 +346,30 @@ contract DerivioA is ReentrancyGuard {
         positionIds[_recipient].push(position.positionKey);
         composedLiquidities[position.positionKey] = position;
 
-        updateUniPosition(position.positionKey, _tickLower, _tickUpper);
+        updateUniPosition(position.positionKey);
     }
 
-    function updateUniPosition(
-        bytes32 _positionKey,
-        int24 _tickLowerCalldata,
-        int24 _tickUpperCalldata
-    ) private {
-        ComposedLiquidity storage composedLiquidity = composedLiquidities[_positionKey];
+    function removePositionKey(address _account, bytes32 _positionKey) 
+        internal 
+    {
+        for (uint256 i = 0; i < positionIds[_account].length; i++) {
+            if (positionIds[_account][i] == _positionKey) {
+                // Replace the element with the last element in the array and remove the last element
+                positionIds[_account][i] = positionIds[_account][positionIds[_account].length - 1];
+                positionIds[_account].pop();
 
-        if (_tickLowerCalldata != 0 || _tickUpperCalldata != 0) {
-            composedLiquidity.uniV3Position.tickLower = _tickLowerCalldata;
-            composedLiquidity.uniV3Position.tickUpper = _tickUpperCalldata;
+                // Remove the ComposedLiquidity from the mapping
+                delete composedLiquidities[_positionKey];
+
+                // The element has been removed, no need to continue the loop
+                return;
+            }
         }
+    }
 
+    function updateUniPosition(bytes32 _positionKey) private {
+
+        ComposedLiquidity storage composedLiquidity = composedLiquidities[_positionKey];
         bytes32 uniKey = keccak256(abi.encodePacked(address(this), composedLiquidity.uniV3Position.tickLower, composedLiquidity.uniV3Position.tickUpper));
         (
             ,
@@ -417,8 +381,8 @@ contract DerivioA is ReentrancyGuard {
             IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), composedLiquidity.uniV3Position.feeTier)).positions(uniKey);
 
         (
-            composedLiquidity.uniV3Position.feeGrowthData.feeGrowthCalculated0X128, 
-            composedLiquidity.uniV3Position.feeGrowthData.feeGrowthCalculated1X128
+            composedLiquidity.uniV3Position.feeGrowthData.feeGrowthLast0X128, 
+            composedLiquidity.uniV3Position.feeGrowthData.feeGrowthLast1X128
         ) = 
             computeFeeGrowth(_positionKey);
 
@@ -557,6 +521,47 @@ contract DerivioA is ReentrancyGuard {
         amountOut = swapRouter.exactInputSingle(params);
     }
     
+    function withdrawLiquidity(
+        address _recipient,
+        bytes32 _positionKey) 
+        public 
+        returns (uint256 collect0, uint256 collect1) 
+    {
+        ComposedLiquidity memory composedLiquidity = positionsOf(_positionKey);
+
+        // Decrease liquidity to zero
+        INonfungiblePositionManager.DecreaseLiquidityParams memory decreaseLiquidityParams = INonfungiblePositionManager.DecreaseLiquidityParams({
+            tokenId: composedLiquidity.uniV3Position.tokenId,
+            liquidity: composedLiquidity.uniV3Position.liquidity,
+            amount0Min: 0,
+            amount1Min: 0,
+            deadline: block.timestamp
+        });
+        (uint256 burn0, uint256 burn1) = positionManager.decreaseLiquidity(decreaseLiquidityParams);
+
+        // Remove liquidity and collect fees
+        (uint256 fee0, uint256 fee1) = unCollectedFee(_positionKey);
+        INonfungiblePositionManager.CollectParams memory collectParams = INonfungiblePositionManager.CollectParams({
+            tokenId: composedLiquidity.uniV3Position.tokenId,
+            recipient: address(this),
+            amount0Max: uint128(burn0 + fee0),
+            amount1Max: uint128(burn1 + fee1)
+        });
+        (collect0, collect1) = positionManager.collect(collectParams);
+
+        updateUniPosition(_positionKey);
+        removePositionKey(_recipient, _positionKey);
+        returnFund(_recipient, collect0, collect1);
+
+        console.log("withdraw..");
+        console.log("burn0: ", burn0);
+        console.log("burn1: ", burn1);
+        console.log("fee0: ", fee0);
+        console.log("fee1: ", fee1);
+        console.log("collect0: ", collect0);
+        console.log("collect1: ", collect1);
+    }
+
     /// @notice Collects the fees associated with provided liquidity
     /// @dev The contract must hold the erc721 token before it can collect fees
     /// @param _tokenId The id of the erc721 token
@@ -587,7 +592,7 @@ contract DerivioA is ReentrancyGuard {
             console.log("amount0: ", amount0);
             console.log("amount1: ", amount1);
 
-            updateUniPosition(_positionKey, 0, 0);
+            updateUniPosition(_positionKey);
             returnFund(_recipient, amount0, amount1);
         }
     }
@@ -601,8 +606,8 @@ contract DerivioA is ReentrancyGuard {
 
         ComposedLiquidity memory composedLiquidity = positionsOf(_positionKey);
 
-        fee0 = feeGrowth0 - composedLiquidity.uniV3Position.feeGrowthData.feeGrowthCalculated0X128;
-        fee1 = feeGrowth1 - composedLiquidity.uniV3Position.feeGrowthData.feeGrowthCalculated1X128;
+        fee0 = feeGrowth0 - composedLiquidity.uniV3Position.feeGrowthData.feeGrowthLast0X128;
+        fee1 = feeGrowth1 - composedLiquidity.uniV3Position.feeGrowthData.feeGrowthLast1X128;
 
         console.log("unCollectedFee.....");
         console.log("fee0: ", fee0);
@@ -619,6 +624,7 @@ contract DerivioA is ReentrancyGuard {
             int24 tickLower,
             int24 tickUpper,
             int24 tickCurrent,
+            ,
             uint256 feeGrowthOutside0Lower,
             uint256 feeGrowthOutside1Lower,
             uint256 feeGrowthOutside0Upper,
@@ -658,6 +664,7 @@ contract DerivioA is ReentrancyGuard {
             int24 tickLower,
             int24 tickUpper,
             int24 tickCurrent,
+            uint256 liquidity,
             uint256 feeGrowthOutside0Lower,
             uint256 feeGrowthOutside1Lower,
             uint256 feeGrowthOutside0Upper,
@@ -666,7 +673,10 @@ contract DerivioA is ReentrancyGuard {
     {
         // Get position details
         ComposedLiquidity memory composedLiquidity = positionsOf(_positionKey);
-        ( , , , , , tickLower, tickUpper, , , , ,) = positionManager.positions(composedLiquidity.uniV3Position.tokenId);
+        
+        tickLower = composedLiquidity.uniV3Position.tickLower;
+        tickUpper = composedLiquidity.uniV3Position.tickUpper;
+        liquidity = composedLiquidity.uniV3Position.liquidity;
 
         // Calculate uncollected fees
         pool = IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), composedLiquidity.uniV3Position.feeTier));

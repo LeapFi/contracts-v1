@@ -55,13 +55,13 @@ describe("DerivioA test", function () {
     weth = (await ethers.getContractAt("IERC20", addresses.WETH)) as IERC20;
     usdc = (await ethers.getContractAt("IERC20", addresses.USDC)) as IERC20;
     
-    const UniHelper = await ethers.getContractFactory("UniHelper")
-    const uniHelper = await UniHelper.deploy(addresses.UniswapV3Factory)
+    const UniHelper = await ethers.getContractFactory("UniHelper");
+    const uniHelper = await UniHelper.deploy(addresses.UniswapV3Factory);
 
-    const DerivioAStorage = await ethers.getContractFactory("DerivioAStorage")
-    derivioAStorage = await DerivioAStorage.deploy()
+    const DerivioAStorage = await ethers.getContractFactory("DerivioAStorage");
+    derivioAStorage = await DerivioAStorage.deploy();
 
-    const DerivioA = await ethers.getContractFactory("DerivioA")
+    const DerivioA = await ethers.getContractFactory("DerivioA");
     derivioA = await DerivioA.deploy(
       uniHelper.address,
       addresses.UniswapV3Factory,
@@ -73,7 +73,7 @@ describe("DerivioA test", function () {
       weth.address,
       usdc.address,
       false
-    )
+    );
 
     const PositionRouter = await ethers.getContractFactory("PositionRouter")
     positionRouter = await PositionRouter.deploy(derivioAStorage.address)
@@ -88,22 +88,22 @@ describe("DerivioA test", function () {
       weth.address,
       usdc.address,
       false
-    )
+    );
   });
 
   describe("Deployment", function () {
 
     it("#1 open DerivioAS by Position Router", async function () {
-      const slot0 = await uniswapV3Pool.slot0()
-      const tickSpacing = await uniswapV3Pool.tickSpacing()
+      const slot0 = await uniswapV3Pool.slot0();
+      const tickSpacing = await uniswapV3Pool.tickSpacing();
 
-      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 250 * tickSpacing
-      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 100 * tickSpacing
+      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 250 * tickSpacing;
+      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 100 * tickSpacing;
       
-      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6)
+      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
       
-      await weth.approve(positionRouter.address, ethers.constants.MaxUint256)
-      await usdc.approve(positionRouter.address, ethers.constants.MaxUint256)
+      await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
+      await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
       
       await positionRouter.openDerivioA(
         {
@@ -119,22 +119,22 @@ describe("DerivioA test", function () {
         },
         weth.address,
         usdc.address,
-      )
+      );
 
-      console.log(await positionRouter.positionsOf(owner.address))
+      console.log(await positionRouter.positionsOf(owner.address));
     });
 
     it("#2 open DerivioAL by Position Router", async function () {
-      const slot0 = await uniswapV3Pool.slot0()
-      const tickSpacing = await uniswapV3Pool.tickSpacing()
+      const slot0 = await uniswapV3Pool.slot0();
+      const tickSpacing = await uniswapV3Pool.tickSpacing();
 
-      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 250 * tickSpacing
-      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 100 * tickSpacing
+      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 250 * tickSpacing;
+      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 100 * tickSpacing;
       
-      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6)
+      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
       
-      await weth.approve(positionRouter.address, ethers.constants.MaxUint256)
-      await usdc.approve(positionRouter.address, ethers.constants.MaxUint256)
+      await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
+      await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
       
       await positionRouter.openDerivioA(
         {
@@ -151,10 +151,10 @@ describe("DerivioA test", function () {
         weth.address,
         usdc.address,
         {value: ethers.utils.parseUnits("0.02", 18)}
-      )
+      );
 
-      await setPricesWithBitsAndExecute(owner.address, gmxFastPriceFeed, 1)
-      console.log(await positionRouter.positionsOf(owner.address))
+      await setPricesWithBitsAndExecute(owner.address, gmxFastPriceFeed, 1);
+      console.log(await positionRouter.positionsOf(owner.address));
     });
 
   });

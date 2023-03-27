@@ -46,7 +46,7 @@ describe("DerivioA test", function () {
 
     // Contracts are deployed using the first signer/account by default
     [owner, otherAccount] = await ethers.getSigners(); 
-    console.log('owner.addr: ' + owner.address)
+    console.log('owner.addr: ' + owner.address);
 
     const balance = await ethers.provider.getBalance(owner.address);
     console.log("Balance:", ethers.utils.formatEther(balance));
@@ -59,13 +59,13 @@ describe("DerivioA test", function () {
     weth = (await ethers.getContractAt("IERC20", addresses.WETH)) as IERC20;
     usdc = (await ethers.getContractAt("IERC20", addresses.USDC)) as IERC20;
     
-    const UniHelper = await ethers.getContractFactory("UniHelper")
-    const uniHelper = await UniHelper.deploy(addresses.UniswapV3Factory)
+    const UniHelper = await ethers.getContractFactory("UniHelper");
+    const uniHelper = await UniHelper.deploy(addresses.UniswapV3Factory);
 
-    const DerivioAStorage = await ethers.getContractFactory("DerivioAStorage")
-    derivioAStorage = await DerivioAStorage.deploy()
+    const DerivioAStorage = await ethers.getContractFactory("DerivioAStorage");
+    derivioAStorage = await DerivioAStorage.deploy();
 
-    const DerivioA = await ethers.getContractFactory("DerivioA")
+    const DerivioA = await ethers.getContractFactory("DerivioA");
     derivioA = await DerivioA.deploy(
       uniHelper.address,
       addresses.UniswapV3Factory,
@@ -77,7 +77,7 @@ describe("DerivioA test", function () {
       weth.address,
       usdc.address,
       false
-    )
+    );
 
     const PositionRouter = await ethers.getContractFactory("PositionRouter")
     positionRouter = await PositionRouter.deploy(derivioAStorage.address)
@@ -92,22 +92,22 @@ describe("DerivioA test", function () {
       weth.address,
       usdc.address,
       false
-    )
+    );
   });
 
   describe("Deployment", function () {
 
     it("#1 Should normally open DerivioAS", async function () {
-      const slot0 = await uniswapV3Pool.slot0()
-      const tickSpacing = await uniswapV3Pool.tickSpacing()
+      const slot0 = await uniswapV3Pool.slot0();
+      const tickSpacing = await uniswapV3Pool.tickSpacing();
 
-      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 20 * tickSpacing
-      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing
+      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 20 * tickSpacing;
+      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing;
       
-      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6)
+      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
       
-      await weth.approve(derivioA.address, ethers.constants.MaxUint256)
-      await usdc.approve(derivioA.address, ethers.constants.MaxUint256)
+      await weth.approve(derivioA.address, ethers.constants.MaxUint256);
+      await usdc.approve(derivioA.address, ethers.constants.MaxUint256);
       
       await derivioA.openAS({
         recipient: owner.address,
@@ -122,20 +122,20 @@ describe("DerivioA test", function () {
       }, 
       owner.address);
 
-      console.log(await positionRouter.positionsOf(owner.address))
+      console.log(await positionRouter.positionsOf(owner.address));
     });
 
     it("#2 Should normally open DerivioAL", async function () {
-      const slot0 = await uniswapV3Pool.slot0()
-      const tickSpacing = await uniswapV3Pool.tickSpacing()
+      const slot0 = await uniswapV3Pool.slot0();
+      const tickSpacing = await uniswapV3Pool.tickSpacing();
 
-      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 25 * tickSpacing
-      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing
+      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 25 * tickSpacing;
+      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing;
       
-      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6)
+      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
       
-      await weth.approve(derivioA.address, ethers.constants.MaxUint256)
-      await usdc.approve(derivioA.address, ethers.constants.MaxUint256)
+      await weth.approve(derivioA.address, ethers.constants.MaxUint256);
+      await usdc.approve(derivioA.address, ethers.constants.MaxUint256);
       
       await derivioA.openAL({
         recipient: owner.address,
@@ -149,25 +149,25 @@ describe("DerivioA test", function () {
         shortMaxSlippage: 0,
       }, 
       owner.address,
-      {value: ethers.utils.parseUnits("0.02", 18)})
+      {value: ethers.utils.parseUnits("0.02", 18)});
 
-      await setPricesWithBitsAndExecute(owner.address, gmxFastPriceFeed, 1)
-      await derivioA.getGmxPosition()
+      await setPricesWithBitsAndExecute(owner.address, gmxFastPriceFeed, 1);
+      await derivioA.getGmxPosition();
     });
     
     it("#3 Should simulate swaps and generate fees", async function () {
 
-      let slot0 = await uniswapV3Pool.slot0()
+      let slot0 = await uniswapV3Pool.slot0();
       console.log('slot0: ' + slot0);
-      const tickSpacing = await uniswapV3Pool.tickSpacing()
+      const tickSpacing = await uniswapV3Pool.tickSpacing();
 
-      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 20 * tickSpacing
-      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing
+      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 20 * tickSpacing;
+      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing;
       
-      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6)
+      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
       
-      await weth.approve(derivioA.address, ethers.constants.MaxUint256)
-      await usdc.approve(derivioA.address, ethers.constants.MaxUint256)
+      await weth.approve(derivioA.address, ethers.constants.MaxUint256);
+      await usdc.approve(derivioA.address, ethers.constants.MaxUint256);
       
       await derivioA.openAS({
         recipient: owner.address,
@@ -198,6 +198,41 @@ describe("DerivioA test", function () {
 
       let comPosition = await derivioA.positionsOf(positionKey);
       await derivioA.collectAllFees(owner.address, positionKey, comPosition.uniV3Position.tokenId);
+    });
+
+    it("#4 Should withdraw normally", async function () {
+
+      let slot0 = await uniswapV3Pool.slot0();
+      const tickSpacing = await uniswapV3Pool.tickSpacing();
+
+      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 20 * tickSpacing;
+      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing;
+      
+      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
+      
+      await weth.approve(derivioA.address, ethers.constants.MaxUint256);
+      await usdc.approve(derivioA.address, ethers.constants.MaxUint256);
+      
+      await derivioA.openAS({
+        recipient: owner.address,
+        tickLower: lowerTick,
+        tickUpper: upperTick,
+        feeTier: feeTier,
+        amount0Desired: 0,
+        amount1Desired: ethers.utils.parseUnits("1000", 6),
+        shortLeverage: 0,
+        swapMaxSlippage: 0,
+        shortMaxSlippage: 0,
+      }, 
+      owner.address);
+
+      let positions = await derivioA.getAllPositionIds(owner.address);
+      let positionKey = positions[0];
+
+      await fundErc20(usdc, addresses.USDCWhale, owner.address, 10000, 6);
+      await swap(swapRouter, feeTier, owner, usdc, weth, 10000, 6);
+
+      await derivioA.withdrawLiquidity(owner.address, positionKey);
     });
 
   });
