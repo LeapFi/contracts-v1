@@ -91,7 +91,7 @@ describe("DerivioA test", function () {
     );
   });
 
-  describe("Deployment", function () {
+  describe("PositionRouter control flow", function () {
 
     it("#1 open DerivioAS by Position Router", async function () {
       const slot0 = await uniswapV3Pool.slot0();
@@ -153,8 +153,92 @@ describe("DerivioA test", function () {
         {value: ethers.utils.parseUnits("0.02", 18)}
       );
 
-      await setPricesWithBitsAndExecute(owner.address, gmxFastPriceFeed, 1);
+      await setPricesWithBitsAndExecute(owner.address, gmxFastPriceFeed, 1700, true, 1);
       console.log(await positionRouter.positionsOf(owner.address));
+    });
+
+    it("#3 close DerivioAS by Position Router", async function () {
+      
+      const slot0 = await uniswapV3Pool.slot0();
+      const tickSpacing = await uniswapV3Pool.tickSpacing();
+
+      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 250 * tickSpacing;
+      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 100 * tickSpacing;
+      
+      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
+      
+      await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
+      await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
+      console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address))
+
+      await positionRouter.openDerivioA(
+        {
+          recipient: owner.address,
+          tickLower: lowerTick,
+          tickUpper: upperTick,
+          feeTier: feeTier,
+          amount0Desired: 0,
+          amount1Desired: ethers.utils.parseUnits("1000", 6),
+          shortLeverage: 0,
+          swapMaxSlippage: 0,
+          shortMaxSlippage: 0,
+        },
+        weth.address,
+        usdc.address,
+      );
+      
+      console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address))
+
+      const positionKeys = await positionRouter.positionsOf(owner.address);
+      await positionRouter.closeDerivioA([positionKeys[0].positionKey], weth.address, usdc.address);
+      const newPositionKeys = await positionRouter.positionsOf(owner.address);
+      
+      console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address))
+
+      expect(newPositionKeys.length).to.equal(positionKeys.length - 1);
+    });
+
+    it("#4 close DerivioAL by Position Router", async function () {
+      
+      console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address))
+      const slot0 = await uniswapV3Pool.slot0();
+      const tickSpacing = await uniswapV3Pool.tickSpacing();
+
+      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 250 * tickSpacing;
+      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 100 * tickSpacing;
+      
+      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
+      
+      await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
+      await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
+      console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address))
+      
+      await positionRouter.openDerivioA(
+        {
+          recipient: owner.address,
+          tickLower: lowerTick,
+          tickUpper: upperTick,
+          feeTier: feeTier,
+          amount0Desired: 0,
+          amount1Desired: ethers.utils.parseUnits("1000", 6),
+          shortLeverage: 500000,
+          swapMaxSlippage: 0,
+          shortMaxSlippage: 0,
+        },
+        weth.address,
+        usdc.address,
+        {value: ethers.utils.parseUnits("0.02", 18)}
+      );
+      
+      const positionKeys = await positionRouter.positionsOf(owner.address);
+      await positionRouter.closeDerivioA([positionKeys[0].positionKey], weth.address, usdc.address, {value: ethers.utils.parseUnits("0.0001", 18)});
+      await setPricesWithBitsAndExecute(owner.address, gmxFastPriceFeed, false, 1500, 1);
+      const newPositionKeys = await positionRouter.positionsOf(owner.address);
+
+      expect(newPositionKeys.length).to.equal(positionKeys.length - 1);
+      
+      console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+      await positionRouter.getGmxPosition(weth.address, usdc.address);
     });
 
   });

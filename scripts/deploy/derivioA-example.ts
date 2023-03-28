@@ -19,20 +19,20 @@ import { fundErc20 } from "../../src/fundErc20";
 
 async function main(): Promise<void> {
 
-  let positionRouterAddress = '0x57AC7efDC029559852115fBF8b8a59EAfa70a543'
-  let feeTier = 500
-  let owner: Signer
-  let otherAccount: Signer
-  let uniswapV3Factory: IUniswapV3Factory
-  let uniswapV3Pool: IUniswapV3Pool
-  let swapRouter: ISwapRouter
-  let gmxPositionRouter: IGmxPositionRouter
-  let gmxFastPriceFeed: IGmxFastPriceFeed
-  let weth: IERC20
-  let usdc: IERC20
-  let derivioA: DerivioA
-  let derivioAStorage: DerivioAStorage
-  let positionRouter: PositionRouter
+  let positionRouterAddress = '0x57AC7efDC029559852115fBF8b8a59EAfa70a543';
+  let feeTier = 500;
+  let owner: Signer;
+  let otherAccount: Signer;
+  let uniswapV3Factory: IUniswapV3Factory;
+  let uniswapV3Pool: IUniswapV3Pool;
+  let swapRouter: ISwapRouter;
+  let gmxPositionRouter: IGmxPositionRouter;
+  let gmxFastPriceFeed: IGmxFastPriceFeed;
+  let weth: IERC20;
+  let usdc: IERC20;
+  let derivioA: DerivioA;
+  let derivioAStorage: DerivioAStorage;
+  let positionRouter: PositionRouter;
 
   let addresses = getAddresses(hre.network.name);
   [owner, otherAccount] = await ethers.getSigners();
@@ -46,13 +46,14 @@ async function main(): Promise<void> {
   usdc = (await ethers.getContractAt("IERC20", addresses.USDC)) as IERC20;
   positionRouter = (await ethers.getContractAt("PositionRouter", positionRouterAddress)) as PositionRouter;
 
-  const slot0 = await uniswapV3Pool.slot0()
-  const tickSpacing = await uniswapV3Pool.tickSpacing()
+  const slot0 = await uniswapV3Pool.slot0();
+  const tickSpacing = await uniswapV3Pool.tickSpacing();
 
-  const lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 25 * tickSpacing
-  const upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing
+  const lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 25 * tickSpacing;
+  const upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing;
   
-  console.log('balanceOf: ' + await usdc.balanceOf(owner.address))
+  console.log('address: ' + owner.address);
+  console.log('balanceOf: ' + await usdc.balanceOf(owner.address));
   // await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6)
   // console.log('balanceOf: ' + await usdc.balanceOf(owner.address))
   
@@ -73,10 +74,10 @@ async function main(): Promise<void> {
     },
     weth.address,
     usdc.address,
-  )
+  );
 
   // console.log(await positionRouter.getPairId(0, weth.address, usdc.address))
-  console.log(await positionRouter.positionsOf(owner.address))
+  console.log(await positionRouter.positionsOf(owner.address));
 }
 
 main()

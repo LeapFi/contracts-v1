@@ -2,10 +2,15 @@ import { ethers } from "hardhat";
 import hre = require("hardhat");
 import { BigNumber as EthersBigNumber } from "@ethersproject/bignumber"
 import { getPriceBits } from "../src/utilities";
+import {
+  IGmxFastPriceFeed,
+} from "../typechain";
 
 export async function setPricesWithBitsAndExecute(
   account: any,
-  gmxFastPriceFeed: any, 
+  gmxFastPriceFeed: IGmxFastPriceFeed,
+  isIncrease: boolean,
+  price: number,
   executeOrders: number,
   ): Promise<void> {
 
@@ -13,19 +18,65 @@ export async function setPricesWithBitsAndExecute(
   const priceGovAddress = await gmxFastPriceFeed.gov()
   const priceGov = await ethers.getImpersonatedSigner(priceGovAddress)
   await gmxFastPriceFeed.connect(priceGov).setUpdater(account, true)
+  
+  // random price
+  let min = 1625;
+  let max = 1645;
+  let randomPrice = Math.floor(Math.random() * (max - min + 1) + min).toString();
+  // randomPrice = price.toString();
 
   // fill
   const blockTime = await getBlockTime()
-  const priceBits = getPriceBits([])
+  const priceBits = getPriceBits([randomPrice, randomPrice, randomPrice, randomPrice])
 
-  await gmxFastPriceFeed.setPricesWithBitsAndExecute(
-    priceBits,
-    blockTime,
-    9999999999, // _endIndexForIncreasePositions
-    9999999999, // _endIndexForDecreasePositions
-    executeOrders, // _maxIncreasePositions
-    0 // _maxDecreasePositions
-  );
+  if (isIncrease) {
+    let tx = await gmxFastPriceFeed.setPricesWithBitsAndExecute(
+      priceBits,
+      blockTime,
+      9999999999, // _endIndexForIncreasePositions
+      9999999999, // _endIndexForDecreasePositions
+      executeOrders, // _maxIncreasePositions
+      0 // _maxDecreasePositions
+    );
+
+    const receipt = await tx.wait();
+    for (const event of receipt.events || []) {
+      try {
+        const parsedEvent = gmxFastPriceFeed.interface.parseLog(event);
+        console.log(`Event name: ${parsedEvent.name}`);
+        console.log(`Event args: ${JSON.stringify(parsedEvent.args, null, 2)}`);
+        console.log("----");
+      } 
+      catch (error) {
+        console.log("Unrecognized event:", event);
+      };
+    }
+
+  }
+  else {
+    let tx = await gmxFastPriceFeed.setPricesWithBitsAndExecute(
+      priceBits,
+      blockTime,
+      9999999999, // _endIndexForIncreasePositions
+      9999999999, // _endIndexForDecreasePositions
+      executeOrders, // _maxIncreasePositions
+      executeOrders // _maxDecreasePositions
+    );
+    
+    const receipt = await tx.wait();
+    for (const event of receipt.events || []) {
+      try {
+        const parsedEvent = gmxFastPriceFeed.interface.parseLog(event);
+        console.log(`Event name: ${parsedEvent.name}`);
+        console.log(`Event args: ${JSON.stringify(parsedEvent.args, null, 2)}`);
+        console.log("----");
+      } 
+      catch (error) {
+        console.log("Unrecognized event:", event);
+      };
+    }
+  }
+  
 };
 
 

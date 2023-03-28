@@ -92,7 +92,25 @@ contract PositionRouter is ReentrancyGuard {
             DerivioA(contractAddr).openAS(_args, msg.sender);
         }
         else {
-            DerivioA(contractAddr).openAL{value: msg.value}(_args, msg.sender);
+            DerivioA(contractAddr).openAL{ value: msg.value }(_args, msg.sender);
+        }
+    }
+
+    function closeDerivioA(bytes32[] memory _positionKeys, address _token0, address _token1) 
+            external payable nonReentrant 
+    {
+        bytes32 pairId = getPairId(derivioAId, _token0, _token1);
+        address contractAddr = derivioAStorage.getAddress(pairId);
+
+        for (uint i = 0; i < _positionKeys.length; i++) {
+            bytes32 positionKey = _positionKeys[i];
+            DerivioA.ComposedLiquidity memory composedLiquidity = DerivioA(contractAddr).positionsOf(positionKey);
+
+            if (composedLiquidity.gmxPosition.shortDelta == 0) {
+                DerivioA(contractAddr).closeAS(msg.sender, positionKey);
+            } else {
+                DerivioA(contractAddr).closeAL{ value: msg.value }(msg.sender, positionKey);
+            }
         }
     }
 
@@ -112,26 +130,42 @@ contract PositionRouter is ReentrancyGuard {
         return derivioAStorage.getAddress(getPairId(_derivioId, _token0, _token1));
     }
 
-    function positionsOf(
-        address _account
-    )
-        public
-        view
-        returns (DerivioA.ComposedLiquidity[] memory)
+    function positionsOf(address _account) 
+        public view returns (DerivioA.ComposedLiquidity[] memory) 
     {
         bytes32[] memory pairIds = derivioAStorage.getAllPairIds();
-        DerivioA.ComposedLiquidity[] memory result = new DerivioA.ComposedLiquidity[](pairIds.length);
-        
-        for (uint i = 0; i < pairIds.length; i++) {
+        uint totalPositions = 0;
 
+        // Calculate the total number of positions
+        for (uint i = 0; i < pairIds.length; i++) {
+            DerivioA derivioA = DerivioA(derivioAStorage.getAddress(pairIds[i]));
+            bytes32[] memory derivioAPositions = derivioA.getAllPositionIds(_account);
+            totalPositions += derivioAPositions.length;
+        }
+
+        // Declare the result array with the total number of positions
+        DerivioA.ComposedLiquidity[] memory result = new DerivioA.ComposedLiquidity[](totalPositions);
+
+        uint resultIndex = 0;
+        // Fill the result array with position data
+        for (uint i = 0; i < pairIds.length; i++) {
             DerivioA derivioA = DerivioA(derivioAStorage.getAddress(pairIds[i]));
             bytes32[] memory derivioAPositions = derivioA.getAllPositionIds(_account);
 
             for (uint j = 0; j < derivioAPositions.length; j++) {
-                result[i] = derivioA.positionsOf(derivioAPositions[j]);
+                result[resultIndex] = derivioA.positionsOf(derivioAPositions[j]);
+                resultIndex++;
             }
         }
 
         return result;
+    }
+
+    function getGmxPosition(address _token0, address _token1) 
+        public
+    {
+        bytes32 pairId = getPairId(derivioAId, _token0, _token1);
+        address contractAddr = derivioAStorage.getAddress(pairId);
+        DerivioA(contractAddr).getGmxPosition();
     }
 }

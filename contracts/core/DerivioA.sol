@@ -90,6 +90,20 @@ contract DerivioA is ReentrancyGuard {
         uint256 shortMaxSlippage;
     }
 
+    modifier verifyPositionExists(address _account, bytes32 _positionKey) {
+
+        bytes32[] memory userPositionIds = positionIds[_account];
+        bool positionExists = false;
+        for (uint i = 0; i < userPositionIds.length; i++) {
+            if (userPositionIds[i] == _positionKey) {
+                positionExists = true;
+                break;
+            }
+        }
+        require(positionExists, "Position does not exist for the given account");
+        _;
+    }
+
     constructor (
         UniHelper _uniHelper, 
         IUniswapV3Factory _uniFactory, 
@@ -180,7 +194,7 @@ contract DerivioA is ReentrancyGuard {
             mintLiquidity(_args.tickLower, _args.tickUpper, _args.feeTier, _args.amount0Desired, _args.amount1Desired);
 
         uint256 shortDelta = collateralAmount * 1;
-        address minVault = openGmxShort(collateralAmount, shortDelta, 0);
+        address minVault = openGmxShort(_args.recipient, collateralAmount, shortDelta, 0);
 
         addPositionInfo(
             _args.recipient,
@@ -195,6 +209,31 @@ contract DerivioA is ReentrancyGuard {
         );
 
         returnFund(_account, _args.amount0Desired, _args.amount1Desired);
+    }
+
+    function closeAS(address _account, bytes32 _positionKey) 
+        external nonReentrant 
+        verifyPositionExists(_account, _positionKey)
+    {
+        ComposedLiquidity memory composedLiquidity = composedLiquidities[_positionKey];
+
+        (uint256 collect0, uint256 collect1)  = withdrawLiquidity(_account, _positionKey);
+        (collect0, collect1)  = swapToCollateral(collect0, collect1, composedLiquidity.uniV3Position.feeTier);
+
+        returnFund(_account, collect0, collect1);
+    }
+
+    function closeAL(address _account, bytes32 _positionKey) 
+        external payable nonReentrant 
+        verifyPositionExists(_account, _positionKey)
+    {
+        closeGmxShort(_account, _positionKey, 0, type(uint256).max);
+        ComposedLiquidity memory composedLiquidity = composedLiquidities[_positionKey];
+        
+        (uint256 collect0, uint256 collect1)  = withdrawLiquidity(_account, _positionKey);
+        (collect0, collect1)  = swapToCollateral(collect0, collect1, composedLiquidity.uniV3Position.feeTier);
+
+        returnFund(_account, collect0, collect1);
     }
 
     function swapToOptimalAmount(
@@ -243,6 +282,23 @@ contract DerivioA is ReentrancyGuard {
         _amount1Out = _amount1Desired;
     }
 
+    function swapToCollateral(uint256 _collect0, uint256 _collect1, uint24 _feeTier) internal returns (uint256 amount0, uint256 amount1) {
+
+        amount0 = _collect0;
+        amount1 = _collect1;
+
+        // Swap the non-collateral token to the collateral token
+        if (isZeroCollateral) {
+            // Swap token1 to token0 (collateral)
+            amount0 += swapExactInputSingle(token1, token0, _collect1, _feeTier);
+            amount1 = 0;
+        } else {
+            // Swap token0 to token1 (collateral)
+            amount0 = 0;
+            amount1 += swapExactInputSingle(token0, token1, _collect0, _feeTier);
+        }
+    }
+
     function calcOptimalAmount(
         PositionArgs memory _args,
         uint160 _sqrtPriceX96, 
@@ -276,6 +332,7 @@ contract DerivioA is ReentrancyGuard {
     }
 
     function openGmxShort(
+        address _recipient,
         uint256 _collateralAmount,
         uint256 _shortDelta,
         uint256 _acceptPrice
@@ -287,6 +344,7 @@ contract DerivioA is ReentrancyGuard {
         require(_shortDelta >= _collateralAmount, "delta size too samll");
         
         MimGmxVault mimGmxVault = new MimGmxVault(
+            _recipient,
             gmxPositionRouter,
             gmxRouter,
             gmxVault,
@@ -300,7 +358,7 @@ contract DerivioA is ReentrancyGuard {
         console.log("_collateralAmount: %s", _collateralAmount);
 
         collateralToken.safeTransfer(address(mimGmxVault), _collateralAmount);
-        mimGmxVault.openGmxShort{value: msg.value}(
+        mimGmxVault.openGmxShort{ value: msg.value }(
             _collateralAmount, 
             _shortDelta, 
             _acceptPrice
@@ -309,6 +367,19 @@ contract DerivioA is ReentrancyGuard {
         minAddr = address(mimGmxVault);
 
         return address(mimGmxVault);
+    }
+
+    function closeGmxShort(address _recipient, bytes32 _positionKey, uint256 _minOut, uint256 _acceptablePrice) 
+        internal 
+    {
+        ComposedLiquidity memory composedLiquidity = composedLiquidities[_positionKey];
+        address mimGmxVaultAddress = composedLiquidity.gmxPosition.minVault;
+
+        // Ensure that the position actually exists
+        require(mimGmxVaultAddress != address(0), "Position not found");
+
+        // Call closeGmxShort on the MimGmxVault contract
+        MimGmxVault(mimGmxVaultAddress).closeGmxShort{ value: msg.value }(_recipient, _minOut, _acceptablePrice);
     }
 
     function addPositionInfo(
@@ -551,7 +622,6 @@ contract DerivioA is ReentrancyGuard {
 
         updateUniPosition(_positionKey);
         removePositionKey(_recipient, _positionKey);
-        returnFund(_recipient, collect0, collect1);
 
         console.log("withdraw..");
         console.log("burn0: ", burn0);
