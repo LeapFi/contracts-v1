@@ -151,7 +151,7 @@ describe("DerivioA test", function () {
       owner.address,
       {value: ethers.utils.parseUnits("0.02", 18)});
 
-      await setPricesWithBitsAndExecute(owner.address, gmxFastPriceFeed, true, 1);
+      await setPricesWithBitsAndExecute(owner.address, gmxFastPriceFeed, true, 1700, 1);
       await derivioA.getGmxPosition();
     });
     

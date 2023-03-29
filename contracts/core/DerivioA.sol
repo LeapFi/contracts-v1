@@ -6,7 +6,7 @@ import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import '@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol';
 import '@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol';
-import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import "../interface/uniswap/INonfungiblePositionManager.sol";
 import "../interface/gmx/IGmxPositionRouter.sol";
 import "../interface/gmx/IGmxRouter.sol";
 import "../interface/gmx/IGmxVault.sol";
