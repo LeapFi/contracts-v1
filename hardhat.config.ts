@@ -42,12 +42,12 @@ const config: HardhatUserConfig = {
     },
 
     arbitrumForked: {
-      accounts: [ACC_1],
+      accounts: ACC_1 ? [ACC_1] : [],
       url: `http://172.104.111.236:8545`,
     },
 
     arbitrum: {
-      accounts: [ACC_1],
+      accounts: ACC_1 ? [ACC_1] : [],
       url: `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
     },
   },
