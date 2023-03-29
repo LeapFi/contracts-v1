@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.13;
 
-import "../interface/uniswap/INonfungiblePositionManager.sol";
 import "../interface/gmx/IGmxPositionRouter.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -65,20 +64,9 @@ interface IPositionRouter {
     }
 
     function openDerivioA(PositionArgs memory _args, address _token0, address _token1) external payable;
-
     function closeDerivioA(bytes32[] memory _positionKeys, address _token0, address _token1) external payable;
-
-    function getPairId(
-        uint32 _derivioId,
-        address _token0,
-        address _token1
-    ) external pure returns (bytes32 pairId);
-
-    function getDerivioAddress(
-        uint32 _derivioId,
-        address _token0,
-        address _token1
-    ) external view returns (address);
-
     function positionsOf(address _account) external view returns (ComposedLiquidity[] memory);
+    
+    function getPairId(uint32 _derivioId, address _token0, address _token1) external pure returns (bytes32 pairId);
+    function getDerivioAddress(uint32 _derivioId, address _token0, address _token1) external view returns (address);
 }

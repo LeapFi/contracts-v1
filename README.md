@@ -1,12 +1,12 @@
-# LeapFi Smart Contract Repository Integration Guide
+# LeapFi Smart Contract Integration Guide
 
 This guide explains how to integrate and interact with the LeapFi smart contracts found in the LeapFi/contracts-v1 GitHub repository.
 
 ## Prerequisites
 Before you begin, make sure you have the following installed:
 
-Node.js (v14.x or later) and
-npm (v7.x or later)
+* Node.js (v16.x)
+* npm (v7.x or later)
 
 ---
 ## Step 1: Clone the Repository
@@ -78,3 +78,16 @@ Please note that you need to configure the env.json file with your own private k
 
 Interacting with the Smart Contracts
 Now that you've successfully set up the repository, compiled the contracts, and optionally configured the environment for testing, you can deploy and interact with the contracts using Hardhat scripts or your preferred tools for development.
+
+
+<br>
+<br>
+
+# Contract Addresses
+The following contract addresses are provided for testing and integration purposes. You can use these addresses to interact with the deployed LeapFi smart contracts on test networks and the Arbitrum mainnet.
+
+## Testnet Addresses
+* IPositionRouter: 0x57AC7efDC029559852115fBF8b8a59EAfa70a543
+
+## Arbitrum Mainnet Addresses
+* IPositionRouter: 
