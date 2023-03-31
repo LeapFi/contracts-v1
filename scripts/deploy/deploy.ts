@@ -7,7 +7,6 @@ import {
   IERC20,
   IUniswapV3Factory,
   IUniswapV3Pool,
-  ISwapRouter,
   IGmxPositionRouter,
   IGmxFastPriceFeed,
   DerivioA,
@@ -23,7 +22,6 @@ async function main(): Promise<void> {
   let otherAccount: Signer
   let uniswapV3Factory: IUniswapV3Factory
   let uniswapV3Pool: IUniswapV3Pool
-  let swapRouter: ISwapRouter
   let gmxPositionRouter: IGmxPositionRouter
   let gmxFastPriceFeed: IGmxFastPriceFeed
   let weth: IERC20
@@ -37,7 +35,6 @@ async function main(): Promise<void> {
 
   uniswapV3Factory = (await ethers.getContractAt("IUniswapV3Factory", addresses.UniswapV3Factory)) as IUniswapV3Factory;
   uniswapV3Pool = (await ethers.getContractAt("IUniswapV3Pool", await uniswapV3Factory.getPool(addresses.USDC, addresses.WETH, feeTier))) as IUniswapV3Pool;
-  swapRouter = (await ethers.getContractAt("ISwapRouter", addresses.SwapRouter)) as ISwapRouter;
   gmxPositionRouter = (await ethers.getContractAt("IGmxPositionRouter", addresses.GMXPositionRouter)) as IGmxPositionRouter;
   gmxFastPriceFeed = (await ethers.getContractAt("IGmxFastPriceFeed", addresses.GMXFastPriceFeed)) as IGmxFastPriceFeed;
   weth = (await ethers.getContractAt("IERC20", addresses.WETH)) as IERC20;

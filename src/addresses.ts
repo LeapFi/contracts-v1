@@ -11,6 +11,7 @@ export interface Addresses {
   WETH: string;
   USDC: string;
   USDCWhale: string;
+  LeapPositionRouter: string;
 }
 
 export const getAddresses = (network: string): Addresses => {
@@ -28,6 +29,7 @@ export const getAddresses = (network: string): Addresses => {
         WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
         USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
         USDCWhale: "0x905dfcd5649217c42684f23958568e533c711aa3",
+        LeapPositionRouter: "0x490dbA3f3935CcaeaEecaa80cf9FF4c53663a4b3",
       };
     case "arbitrumForked":
       return {
@@ -42,6 +44,7 @@ export const getAddresses = (network: string): Addresses => {
         WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
         USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
         USDCWhale: "0x905dfcd5649217c42684f23958568e533c711aa3",
+        LeapPositionRouter: "0x490dbA3f3935CcaeaEecaa80cf9FF4c53663a4b3",
       };
     case "arbitrum":
       return {
@@ -56,6 +59,7 @@ export const getAddresses = (network: string): Addresses => {
         WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
         USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
         USDCWhale: "",
+        LeapPositionRouter: "",
       };
     default:
       throw new Error(`No addresses for Network: ${network}`);

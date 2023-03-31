@@ -112,9 +112,10 @@ contract MimGmxVault is ReentrancyGuard {
     }
 
     function getGmxPosition() 
-        public
+        public view
+        returns (uint256 sizeDelta, uint256 collateral)
     {
-        (uint256 sizeDelta, uint256 collateral, , , , , , ) = gmxVault.getPosition(address(this), collateralToken, indexToken, false);
+        (sizeDelta, collateral, , , , , , ) = gmxVault.getPosition(address(this), collateralToken, indexToken, false);
         console.log("sizeDelta: %s", sizeDelta);
         console.log("collateral: %s", collateral);
         console.log("collateral amount: ", IERC20(collateralToken).balanceOf(address(this)));

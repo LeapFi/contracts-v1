@@ -69,4 +69,6 @@ interface IPositionRouter {
     
     function getPairId(uint32 _derivioId, address _token0, address _token1) external pure returns (bytes32 pairId);
     function getDerivioAddress(uint32 _derivioId, address _token0, address _token1) external view returns (address);
+
+    function getGmxPosition(address _token0, address _token1) external view returns (uint256 sizeDelta, uint256 collateral);
 }

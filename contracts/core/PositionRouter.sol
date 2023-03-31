@@ -162,10 +162,11 @@ contract PositionRouter is ReentrancyGuard {
     }
 
     function getGmxPosition(address _token0, address _token1) 
-        public
+        public view
+        returns (uint256 sizeDelta, uint256 collateral)
     {
         bytes32 pairId = getPairId(derivioAId, _token0, _token1);
         address contractAddr = derivioAStorage.getAddress(pairId);
-        DerivioA(contractAddr).getGmxPosition();
+        (sizeDelta, collateral) = DerivioA(contractAddr).getGmxPosition();
     }
 }

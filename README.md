@@ -79,7 +79,6 @@ Please note that you need to configure the env.json file with your own private k
 Interacting with the Smart Contracts
 Now that you've successfully set up the repository, compiled the contracts, and optionally configured the environment for testing, you can deploy and interact with the contracts using Hardhat scripts or your preferred tools for development.
 
-
 <br>
 <br>
 
@@ -87,7 +86,7 @@ Now that you've successfully set up the repository, compiled the contracts, and 
 The following contract addresses are provided for testing and integration purposes. You can use these addresses to interact with the deployed LeapFi smart contracts on test networks and the Arbitrum mainnet.
 
 ## Testnet Addresses
-* IPositionRouter: 0x57AC7efDC029559852115fBF8b8a59EAfa70a543
+* IPositionRouter: 0x490dbA3f3935CcaeaEecaa80cf9FF4c53663a4b3
 
 ## Arbitrum Mainnet Addresses
 * IPositionRouter: 

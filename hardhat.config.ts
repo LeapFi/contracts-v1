@@ -32,7 +32,7 @@ const config: HardhatUserConfig = {
       forking: {
         // url: `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
         // url: `https://arbitrum-mainnet.infura.io/v3/${INFURA_KEY}`,
-        url: `http://172.104.111.236:8545`,
+        url: 'https://testnet.leapfi.io',
         blockNumber: 71602557,
       },
       blockGasLimit: 0x1fffffffffff,
@@ -43,7 +43,7 @@ const config: HardhatUserConfig = {
 
     arbitrumForked: {
       accounts: ACC_1 ? [ACC_1] : [],
-      url: `http://172.104.111.236:8545`,
+      url: 'https://testnet.leapfi.io',
     },
 
     arbitrum: {

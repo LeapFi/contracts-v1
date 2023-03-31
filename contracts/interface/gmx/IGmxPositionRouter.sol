@@ -8,5 +8,7 @@ interface IGmxPositionRouter {
 
     function minExecutionFee() external view returns (uint256);
     function getRequestQueueLengths() external view returns (uint256, uint256, uint256, uint256);
+    
     function executeIncreasePositions(uint256 _endIndex, address payable _executionFeeReceiver) external;
+    function executeDecreasePositions(uint256 _endIndex, address payable _executionFeeReceiver) external;
 }

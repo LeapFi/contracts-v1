@@ -460,10 +460,11 @@ contract DerivioA is ReentrancyGuard {
     }
 
     function getGmxPosition() 
-        public
+        public view
+        returns (uint256 sizeDelta, uint256 collateral)
     {
         console.log("getGmxPosition.....");
-        MimGmxVault(minAddr).getGmxPosition();
+        (sizeDelta, collateral) = MimGmxVault(minAddr).getGmxPosition();
     }
 
     function positionsOf(
