@@ -86,7 +86,7 @@ Now that you've successfully set up the repository, compiled the contracts, and 
 The following contract addresses are provided for testing and integration purposes. You can use these addresses to interact with the deployed LeapFi smart contracts on test networks and the Arbitrum mainnet.
 
 ## Testnet Addresses
-* IPositionRouter: 0x490dbA3f3935CcaeaEecaa80cf9FF4c53663a4b3
+* IPositionRouter: 0xd249e8961A2fEf9F95C0Ca90d32398bafd6c0C62
 
 ## Arbitrum Mainnet Addresses
 * IPositionRouter: 
