@@ -29,7 +29,7 @@ export const getAddresses = (network: string): Addresses => {
         WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
         USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
         USDCWhale: "0x905dfcd5649217c42684f23958568e533c711aa3",
-        LeapPositionRouter: "0xEd911Fc9e5C4478ef2D3e46eaaCbe345ECC6E5B4",
+        LeapPositionRouter: "0xd249e8961A2fEf9F95C0Ca90d32398bafd6c0C62",
       };
     case "arbitrumForked":
       return {
@@ -44,7 +44,7 @@ export const getAddresses = (network: string): Addresses => {
         WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
         USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
         USDCWhale: "0x905dfcd5649217c42684f23958568e533c711aa3",
-        LeapPositionRouter: "0xEd911Fc9e5C4478ef2D3e46eaaCbe345ECC6E5B4",
+        LeapPositionRouter: "0xd249e8961A2fEf9F95C0Ca90d32398bafd6c0C62",
       };
     case "arbitrum":
       return {
