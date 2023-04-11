@@ -65,7 +65,7 @@ async function main(): Promise<void> {
     tickUpper: upperTick,
     feeTier: feeTier,
     amount0Desired: 0,
-    amount1Desired: ethers.utils.parseUnits("1000", 6),
+    amount1Desired: ethers.utils.parseUnits("100", 6),
     shortLeverage: 500000,
     swapMaxSlippage: 0,
     shortMaxSlippage: 0,
