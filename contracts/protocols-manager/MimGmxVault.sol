@@ -80,8 +80,6 @@ contract MimGmxVault is ReentrancyGuard {
         uint256 executionFee = gmxPositionRouter.minExecutionFee();
         // bool withdrawETH = false; // Set to true if you want to receive ETH instead of the collateral token
 
-        console.log('executionFee: ', executionFee);
-
         gmxPositionRouter.createDecreasePosition{ value: executionFee }(
             path,
             indexToken,

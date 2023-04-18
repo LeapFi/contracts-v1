@@ -112,28 +112,6 @@ describe("DerivioA test", function () {
       const positionKeeper = await ethers.getImpersonatedSigner(addresses.GMXFastPriceFeed);
       await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
       await derivioA.getGmxPosition();
-
-
-      // await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
-      // await weth.approve(derivioA.address, ethers.constants.MaxUint256);
-      // await usdc.approve(derivioA.address, ethers.constants.MaxUint256);
-      // await derivioA.openAL({
-      //   recipient: owner.address,
-      //   tickLower: lowerTick,
-      //   tickUpper: upperTick,
-      //   feeTier: feeTier,
-      //   amount0Desired: 0,
-      //   amount1Desired: ethers.utils.parseUnits("1000", 6),
-      //   shortLeverage: 500000,
-      //   swapMaxSlippage: 0,
-      //   shortMaxSlippage: 0,
-      // }, 
-      // owner.address,
-      // {value: ethers.utils.parseUnits("0.02", 18)});
-
-      // // await setPricesWithBitsAndExecute(owner.address, gmxFastPriceFeed, gmxPositionRouter, true, 1700, 1);
-      // await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
-      // await derivioA.getGmxPosition();
     });
     
     it("#3 Should simulate swaps and generate fees", async function () {
