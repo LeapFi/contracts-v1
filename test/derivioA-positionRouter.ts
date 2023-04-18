@@ -218,6 +218,7 @@ describe("DerivioA test", function () {
 
       const positionKeeper = await ethers.getImpersonatedSigner(addresses.GMXFastPriceFeed);
       await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
+      await gmxPositionRouter.connect(positionKeeper).executeDecreasePositions(999999999, addresses.GMXFastPriceFeed);
 
       // Get updated positions after closing
       const newPositions = await derivioPositionManager.getAllPositions(owner.address);
