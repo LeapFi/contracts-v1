@@ -32,7 +32,7 @@ contract UniV3Vault is ReentrancyGuard, IProtocolPosition {
     // positionKey => ComposedLiquidity
     mapping(bytes32 => UniV3Position) liquidities;
 
-    struct UniV3OpenArgvs {
+    struct UniV3OpenArgs {
         int24 tickLower;
         int24 tickUpper;
         uint24 feeTier;
@@ -86,11 +86,11 @@ contract UniV3Vault is ReentrancyGuard, IProtocolPosition {
         return liquidities[_positionId];
     }
 
-    function convertBytes32ToOpenPositionArgs(bytes32[] memory _args) internal returns (UniV3OpenArgvs memory) {
+    function convertBytes32ToOpenPositionArgs(bytes32[] memory _args) internal returns (UniV3OpenArgs memory) {
 
         require(_args.length == 5, "Invalid number of arguments");
         
-        return UniV3OpenArgvs({
+        return UniV3OpenArgs({
             tickLower: int24(uint24(uint256(_args[0]))),
             tickUpper: int24(uint24(uint256(_args[1]))),
             feeTier: uint24(uint256(_args[2])),
@@ -101,9 +101,7 @@ contract UniV3Vault is ReentrancyGuard, IProtocolPosition {
 
     function openPosition(address _account, bytes32[] calldata _args) external payable override returns (bytes32[] memory) {
 
-        UniV3OpenArgvs memory uniV3Args = convertBytes32ToOpenPositionArgs(_args);
-
-        
+        UniV3OpenArgs memory uniV3Args = convertBytes32ToOpenPositionArgs(_args);
 
         // Approve the Uniswap V3 contract to spend the tokens on behalf of this contract
         token0.approve(address(positionManager), uniV3Args.amount0);
@@ -189,7 +187,10 @@ contract UniV3Vault is ReentrancyGuard, IProtocolPosition {
         return keccak256(abi.encodePacked(_addr, nextId[_addr], _tickLower, _tickUpper));
     }
 
-    function closePosition(address _account, bytes32[] calldata _args) external payable override returns (bytes32[] memory) {
+    function closePosition(address _account, bytes32[] calldata _args) 
+        external payable override 
+        returns (bytes32[] memory, Fund[] memory) 
+    {
         // Parse input arguments from the bytes32 array
         bytes32 _positionKey = _args[0];
 
@@ -221,13 +222,21 @@ contract UniV3Vault is ReentrancyGuard, IProtocolPosition {
         updateUniPosition(_positionKey);
         removePositionKey(_account, _positionKey);
 
-        returnFund(_account, collect0, collect1);
+        IProtocolPosition.Fund[] memory returnedFund = new IProtocolPosition.Fund[](2); 
 
-        bytes32[] memory result = new bytes32[](2);
-        result[0] = bytes32(collect0);
-        result[1] = bytes32(collect1);
+        returnedFund[0].token = address(token0);
+        returnedFund[1].token = address(token1);
 
-        return result;
+        returnedFund[0].amount = collect0;
+        returnedFund[1].amount = collect1;
+
+        // returnFund(_account, collect0, collect1);
+
+        bytes32[] memory result = new bytes32[](0);
+        // result[0] = bytes32(collect0);
+        // result[1] = bytes32(collect1);
+
+        return (result, returnedFund);
     }
     
     function removePositionKey(address _account, bytes32 _positionKey) 
@@ -411,11 +420,21 @@ contract UniV3Vault is ReentrancyGuard, IProtocolPosition {
         fee = FullMath.mulDiv(liquidity, feeGrowthInsideX128 - feeGrowthInsideLastX128, FixedPoint128_Q128);
     }
 
-    function returnFund(
-        address _account, 
-        uint256 _amount0,
-        uint256 _amount1
-        ) 
+    function receiveFund(address _fundingAcc, Fund[] memory _fund) external {
+        
+        for (uint i = 0; i < _fund.length; i++) {
+            IERC20(_fund[i].token).safeTransferFrom(_fundingAcc, address(this), _fund[i].amount);
+        }
+    }
+
+    function returnFund(address _fundingAcc, Fund[] memory _fund) external {
+        
+        for (uint i = 0; i < _fund.length; i++) {
+            IERC20(_fund[i].token).safeTransfer(_fundingAcc, _fund[i].amount);
+        }
+    }
+
+    function returnFund(address _account, uint256 _amount0, uint256 _amount1) 
         internal 
     {
         token0.safeTransfer(_account, _amount0);

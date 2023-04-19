@@ -23,16 +23,23 @@ contract DerivioPositionManager is ReentrancyGuard {
         bytes32[] positionInfo;
     }
 
-    struct ProtocolOpenArgv {
+    struct ProtocolOpenArg {
+        address protocolVault;
+        uint256 senderValue;
+        IProtocolPosition.Fund[] fund;
+        bytes32[] inputArgs;
+    }
+
+    struct ProtocolCloseArg {
         address protocolVault;
         uint256 senderValue;
         bytes32[] inputArgs;
     }
 
-    struct ProtocolCloseArgv {
+    struct ProtocolCloseInfo {
         address protocolVault;
-        uint256 senderValue;
-        bytes32[] inputArgs;
+        bytes32[] positionInfo;
+        IProtocolPosition.Fund[] fund;
     }
 
     function verifyPositionExists(address _account, bytes32 _positionKey) internal view {
@@ -53,12 +60,14 @@ contract DerivioPositionManager is ReentrancyGuard {
         
     }
 
-    function openProtocolsPosition(address _account, ProtocolOpenArgv[] memory _args) 
+    function openProtocolsPosition(address _account, ProtocolOpenArg[] memory _args) 
         external payable nonReentrant
         returns (ProtocolPosition[] memory result_) 
     {
         result_ = new ProtocolPosition[](_args.length);
         for (uint i = 0; i < _args.length; i++) {
+
+            IProtocolPosition(_args[i].protocolVault).receiveFund(msg.sender, _args[i].fund);
 
             result_[i] = ProtocolPosition({
                 protocolVault: _args[i].protocolVault,
@@ -69,17 +78,26 @@ contract DerivioPositionManager is ReentrancyGuard {
         addPositionInfo(_account, result_);
     }
 
-    function closeProtocolsPosition(address _account, bytes32 _positionKey, ProtocolCloseArgv[] memory _args) 
+    function closeProtocolsPosition(address _account, bytes32 _positionKey, ProtocolCloseArg[] memory _args) 
         external payable nonReentrant
-        returns (ProtocolPosition[] memory result_) 
+        returns (ProtocolCloseInfo[] memory result_) 
     {
         verifyPositionExists(_account, _positionKey);
 
-        result_ = new ProtocolPosition[](_args.length);
+        result_ = new ProtocolCloseInfo[](_args.length);
         for (uint i = 0; i < _args.length; i++) {
-            result_[i] = ProtocolPosition({
+
+            IProtocolPosition protocolVault = IProtocolPosition(_args[i].protocolVault);
+
+            (bytes32[] memory positionInfo, IProtocolPosition.Fund[] memory closedFund) = 
+                protocolVault.closePosition{ value: _args[i].senderValue }(_account, _args[i].inputArgs);
+
+            protocolVault.returnFund(msg.sender, closedFund);
+
+             result_[i] = ProtocolCloseInfo({
                 protocolVault: _args[i].protocolVault,
-                positionInfo: IProtocolPosition(_args[i].protocolVault).closePosition{ value: _args[i].senderValue }(_account, _args[i].inputArgs) 
+                positionInfo: positionInfo,
+                fund: closedFund
             });
         }
 

@@ -80,7 +80,7 @@ contract GmxManager is ReentrancyGuard, IProtocolPosition {
 
     function closePosition(address _account, bytes32[] calldata _args)
         external payable override
-        returns (bytes32[] memory)
+        returns (bytes32[] memory, Fund[] memory) 
     {
         // Parse the input arguments
         address mimGmxVaultAddress = address(uint160(uint256(_args[0])));
@@ -95,7 +95,10 @@ contract GmxManager is ReentrancyGuard, IProtocolPosition {
 
         // Currently, there are no return values for closePosition
         bytes32[] memory result = new bytes32[](0);
-        return result;
+
+        IProtocolPosition.Fund[] memory returnedFund = new IProtocolPosition.Fund[](0); 
+
+        return (result, returnedFund);
     }
 
     function getGmxPosition() 
@@ -103,5 +106,19 @@ contract GmxManager is ReentrancyGuard, IProtocolPosition {
         returns (uint256 sizeDelta, uint256 collateral)
     {
         return mimGmxVaultCont.getGmxPosition();
+    }
+
+    function receiveFund(address _fundingAcc, Fund[] memory _fund) external {
+        
+        for (uint i = 0; i < _fund.length; i++) {
+            IERC20(_fund[i].token).safeTransferFrom(_fundingAcc, address(this), _fund[i].amount);
+        }
+    }
+
+    function returnFund(address _fundingAcc, Fund[] memory _fund) external {
+        
+        for (uint i = 0; i < _fund.length; i++) {
+            IERC20(_fund[i].token).safeTransfer(_fundingAcc, _fund[i].amount);
+        }
     }
 }

@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.13;
 
-import "../interface/gmx/IGmxPositionRouter.sol";
-import "./DerivioPositionManager.sol";
-import "./DerivioA.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "../DerivioPositionManager.sol";
+import "../DerivioA.sol";
 
 interface IPositionRouter {
 

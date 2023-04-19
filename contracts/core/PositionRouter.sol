@@ -5,9 +5,9 @@ import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import '@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol';
 import '@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol';
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../interface/uniswap/INonfungiblePositionManager.sol";
 import "../interface/gmx/IGmxPositionRouter.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../peripherals/UniHelper.sol";
 import "../protocols-manager/GmxManager.sol";
 import "../protocols-manager/UniV3Vault.sol";
@@ -80,14 +80,14 @@ contract PositionRouter is ReentrancyGuard {
         }
     }
 
-    function closeDerivioA(bytes32[] memory _positionKeys, address _token0, address _token1) 
+    function closeDerivioA(bytes32[] memory _positionKeys, bool _swapToCollateral, address _token0, address _token1) 
             external payable nonReentrant 
     {
         bytes32 pairId = getPairId(derivioAId, _token0, _token1);
         address contractAddr = derivioAStorage.getAddress(pairId);
 
         for (uint i = 0; i < _positionKeys.length; i++) {
-            DerivioA(contractAddr).closePosition{ value: msg.value }(msg.sender, _positionKeys[i]);
+            DerivioA(contractAddr).closePosition{ value: msg.value }(msg.sender, _positionKeys[i], _swapToCollateral);
         }
     }
 
