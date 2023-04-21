@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { FullMath, LiquidityAmounts } from "@arrakisfi/v3-lib-0.8/contracts/LiquidityAmounts.sol";
 import { TickMath } from "@arrakisfi/v3-lib-0.8/contracts/TickMath.sol";
 import "../protocols-manager/GmxManager.sol";
-import "../protocols-manager/UniV3Vault.sol";
+import "../protocols-manager/UniV3Manager.sol";
 import "./DerivioPositionManager.sol";
 import "../peripherals/UniHelper.sol";
 import "hardhat/console.sol";
@@ -26,7 +26,7 @@ contract DerivioA is ReentrancyGuard {
     bool immutable isZeroCollateral;
 
     DerivioPositionManager private immutable derivioPositionManager;
-    UniV3Vault private immutable uniV3Vault;
+    UniV3Manager private immutable uniV3Manager;
     GmxManager private immutable gmxManager;
 
     UniHelper private immutable uniHelper;
@@ -50,7 +50,7 @@ contract DerivioA is ReentrancyGuard {
         IUniswapV3Factory _uniFactory, 
         ISwapRouter _swapRouter,
         DerivioPositionManager _derivioPositionManager,
-        UniV3Vault _uniV3Vault,
+        UniV3Manager _uniV3Manager,
         GmxManager _gmxManager,
         address _token0,
         address _token1,
@@ -62,7 +62,7 @@ contract DerivioA is ReentrancyGuard {
         swapRouter = _swapRouter;
 
         derivioPositionManager = DerivioPositionManager(_derivioPositionManager);
-        uniV3Vault = UniV3Vault(_uniV3Vault);
+        uniV3Manager = UniV3Manager(_uniV3Manager);
         gmxManager = GmxManager(_gmxManager);
         
         token0 = IERC20(_token0);
@@ -75,7 +75,7 @@ contract DerivioA is ReentrancyGuard {
 
     function openAS(PositionArgs memory _args) external nonReentrant {
 
-        _args.amount0Desired = 0;
+        // _args.amount0Desired = 0;
         IUniswapV3Pool pool = IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), _args.feeTier));
         uniHelper.validateTickSpacing(pool, _args.tickLower, _args.tickUpper);
         (uint160 sqrtPriceX96, int24 tickCurrent, , , , , ) = pool.slot0();
@@ -90,8 +90,8 @@ contract DerivioA is ReentrancyGuard {
         DerivioPositionManager.ProtocolOpenArg[] memory openArgs = new DerivioPositionManager.ProtocolOpenArg[](1);
         openArgs[0] = createUniV3ProtocolOpenArg(_args);
 
-        token0.approve(address(uniV3Vault), _args.amount0Desired);
-        token1.approve(address(uniV3Vault), _args.amount1Desired);
+        token0.approve(address(uniV3Manager), _args.amount0Desired);
+        token1.approve(address(uniV3Manager), _args.amount1Desired);
  
         // Open position in the protocol
         DerivioPositionManager.ProtocolPosition[] memory position = derivioPositionManager.openProtocolsPosition(_args.recipient, openArgs);
@@ -99,7 +99,7 @@ contract DerivioA is ReentrancyGuard {
 
     function openAL(PositionArgs memory _args) external payable nonReentrant {
 
-        _args.amount0Desired = 0;
+        // _args.amount0Desired = 0;
         IUniswapV3Pool pool = IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), _args.feeTier));
         uniHelper.validateTickSpacing(pool, _args.tickLower, _args.tickUpper);
         (uint160 sqrtPriceX96, int24 tickCurrent, , , , , ) = pool.slot0();
@@ -110,10 +110,9 @@ contract DerivioA is ReentrancyGuard {
         (uint256 amount0Uni, uint256 amount1Uni, uint256 collateralAmount) = calcOptimalAmount(_args, sqrtPriceX96, tickCurrent, true);
         (_args.amount0Desired, _args.amount1Desired) = swapToOptimalAmount(_args.amount0Desired, _args.amount1Desired, amount0Uni, amount1Uni, collateralAmount, _args.feeTier);
 
-        token0.approve(address(uniV3Vault), _args.amount0Desired);
-        token1.approve(address(uniV3Vault), _args.amount1Desired);
-        
-        collateralToken.safeTransfer(address(gmxManager), collateralAmount);
+        token0.approve(address(uniV3Manager), _args.amount0Desired);
+        token1.approve(address(uniV3Manager), _args.amount1Desired);
+        collateralToken.approve(address(gmxManager), collateralAmount);
 
         // Prepare protocol open arguments
         DerivioPositionManager.ProtocolOpenArg[] memory openArgs = new DerivioPositionManager.ProtocolOpenArg[](2);
@@ -128,7 +127,7 @@ contract DerivioA is ReentrancyGuard {
 
     function createUniV3ProtocolOpenArg(PositionArgs memory _args) internal view returns (DerivioPositionManager.ProtocolOpenArg memory uniV3Arg) {
         uniV3Arg = DerivioPositionManager.ProtocolOpenArg({
-            protocolVault: address(uniV3Vault),
+            protocolManager: address(uniV3Manager),
             senderValue: 0,
             fund: new IProtocolPosition.Fund[](2),
             inputArgs: new bytes32[](5)
@@ -149,22 +148,23 @@ contract DerivioA is ReentrancyGuard {
         return uniV3Arg;
     }
 
-    function createGmxProtocolOpenArg(uint256 collateralAmount, uint256 shortDelta) internal view returns (DerivioPositionManager.ProtocolOpenArg memory gmxArg) {
+    function createGmxProtocolOpenArg(uint256 _collateralAmount, uint256 _shortDelta) internal view returns (DerivioPositionManager.ProtocolOpenArg memory gmxArg) {
         bytes32[] memory gmxArgs = new bytes32[](5);
         gmxArgs[0] = bytes32(uint256(uint160(address(collateralToken))));
         gmxArgs[1] = bytes32(uint256(uint160(address(indexToken))));
-        gmxArgs[2] = bytes32(collateralAmount);
-        gmxArgs[3] = bytes32(shortDelta);
+        gmxArgs[2] = bytes32(_collateralAmount);
+        gmxArgs[3] = bytes32(_shortDelta);
         gmxArgs[4] = bytes32(0);
 
         gmxArg = DerivioPositionManager.ProtocolOpenArg({
-            protocolVault: address(gmxManager),
+            protocolManager: address(gmxManager),
             senderValue: msg.value,
             fund: new IProtocolPosition.Fund[](1),
             inputArgs: gmxArgs
         });
 
-        return gmxArg;
+        gmxArg.fund[0].token = address(collateralToken);
+        gmxArg.fund[0].amount = _collateralAmount;
     }
 
     function closePosition(address _account, bytes32 _positionKey, bool _swapToCollateral) 
@@ -175,17 +175,17 @@ contract DerivioA is ReentrancyGuard {
         DerivioPositionManager.ProtocolCloseArg[] memory protocolCloseArgs = new DerivioPositionManager.ProtocolCloseArg[](position.length);
 
         for (uint i = 0; i < position.length; i++) {
-            if (position[i].protocolVault == address(uniV3Vault)) {
+            if (position[i].protocolManager == address(uniV3Manager)) {
                 protocolCloseArgs[i] = DerivioPositionManager.ProtocolCloseArg({
-                    protocolVault: address(uniV3Vault),
+                    protocolManager: address(uniV3Manager),
                     inputArgs: new bytes32[](1),
                     senderValue: 0
                 });
                 protocolCloseArgs[i].inputArgs[0] = position[i].positionInfo[0];
 
-            } else if (position[i].protocolVault == address(gmxManager)) {
+            } else if (position[i].protocolManager == address(gmxManager)) {
                 protocolCloseArgs[i] = DerivioPositionManager.ProtocolCloseArg({
-                    protocolVault: address(gmxManager),
+                    protocolManager: address(gmxManager),
                     inputArgs: new bytes32[](3),
                     senderValue: msg.value
                 });
@@ -199,7 +199,7 @@ contract DerivioA is ReentrancyGuard {
         DerivioPositionManager.ProtocolCloseInfo[] memory closedPositions = derivioPositionManager.closeProtocolsPosition{ value: msg.value }(_account, _positionKey, protocolCloseArgs);
 
         for (uint i = 0; i < closedPositions.length; i++) {
-            if (closedPositions[i].protocolVault == address(uniV3Vault)) {
+            if (closedPositions[i].protocolManager == address(uniV3Manager)) {
                 
                 uint256 collect0 = closedPositions[i].fund[0].amount;
                 uint256 collect1 = closedPositions[i].fund[1].amount;
@@ -212,7 +212,7 @@ contract DerivioA is ReentrancyGuard {
                 // Return the funds to the account
                 returnFund(_account, collect0, collect1);
 
-            } else if (closedPositions[i].protocolVault == address(gmxManager)) {
+            } else if (closedPositions[i].protocolManager == address(gmxManager)) {
                 // Handle GMX closed position if needed
             }
         }

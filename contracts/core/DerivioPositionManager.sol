@@ -19,30 +19,30 @@ contract DerivioPositionManager is ReentrancyGuard {
     }
 
     struct ProtocolPosition {
-        address protocolVault;
+        address protocolManager;
         bytes32[] positionInfo;
     }
 
     struct ProtocolOpenArg {
-        address protocolVault;
+        address protocolManager;
         uint256 senderValue;
         IProtocolPosition.Fund[] fund;
         bytes32[] inputArgs;
     }
 
     struct ProtocolCloseArg {
-        address protocolVault;
+        address protocolManager;
         uint256 senderValue;
         bytes32[] inputArgs;
     }
 
     struct ProtocolCloseInfo {
-        address protocolVault;
+        address protocolManager;
         bytes32[] positionInfo;
         IProtocolPosition.Fund[] fund;
     }
 
-    function verifyPositionExists(address _account, bytes32 _positionKey) internal view {
+    function verifyPositionOwner(address _account, bytes32 _positionKey) internal view {
 
         bytes32[] memory keys = accountKeys[_account];
         bool positionExists = false;
@@ -67,11 +67,11 @@ contract DerivioPositionManager is ReentrancyGuard {
         result_ = new ProtocolPosition[](_args.length);
         for (uint i = 0; i < _args.length; i++) {
 
-            IProtocolPosition(_args[i].protocolVault).receiveFund(msg.sender, _args[i].fund);
+            IProtocolPosition(_args[i].protocolManager).receiveFund(msg.sender, _args[i].fund);
 
             result_[i] = ProtocolPosition({
-                protocolVault: _args[i].protocolVault,
-                positionInfo: IProtocolPosition(_args[i].protocolVault).openPosition{ value: _args[i].senderValue }(_account, _args[i].inputArgs)
+                protocolManager: _args[i].protocolManager,
+                positionInfo: IProtocolPosition(_args[i].protocolManager).openPosition{ value: _args[i].senderValue }(_account, _args[i].inputArgs)
             });
         }
 
@@ -82,20 +82,20 @@ contract DerivioPositionManager is ReentrancyGuard {
         external payable nonReentrant
         returns (ProtocolCloseInfo[] memory result_) 
     {
-        verifyPositionExists(_account, _positionKey);
+        verifyPositionOwner(_account, _positionKey);
 
         result_ = new ProtocolCloseInfo[](_args.length);
         for (uint i = 0; i < _args.length; i++) {
 
-            IProtocolPosition protocolVault = IProtocolPosition(_args[i].protocolVault);
+            IProtocolPosition protocolManager = IProtocolPosition(_args[i].protocolManager);
 
             (bytes32[] memory positionInfo, IProtocolPosition.Fund[] memory closedFund) = 
-                protocolVault.closePosition{ value: _args[i].senderValue }(_account, _args[i].inputArgs);
+                protocolManager.closePosition{ value: _args[i].senderValue }(_account, _args[i].inputArgs);
 
-            protocolVault.returnFund(msg.sender, closedFund);
+            protocolManager.returnFund(msg.sender, closedFund);
 
              result_[i] = ProtocolCloseInfo({
-                protocolVault: _args[i].protocolVault,
+                protocolManager: _args[i].protocolManager,
                 positionInfo: positionInfo,
                 fund: closedFund
             });
@@ -142,15 +142,15 @@ contract DerivioPositionManager is ReentrancyGuard {
     }
 
     function getAllPositionKeys(address _account)
-        public
-        view
+        public view
         returns (bytes32[] memory)
     {
         return accountKeys[_account];
     }
 
     function getAllPositions(address _account)
-        public view returns (Pos[] memory)
+        public view 
+        returns (Pos[] memory)
     {
         bytes32[] memory positionKeys = getAllPositionKeys(_account);
         Pos[] memory result_ = new Pos[](positionKeys.length);

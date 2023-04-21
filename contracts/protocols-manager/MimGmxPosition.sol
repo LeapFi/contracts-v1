@@ -9,7 +9,7 @@ import "../interface/gmx/IGmxRouter.sol";
 import "../interface/gmx/IGmxVault.sol";
 import "hardhat/console.sol";
 
-contract MimGmxVault is ReentrancyGuard {
+contract MimGmxPosition is ReentrancyGuard {
 
     using SafeERC20 for IERC20;
     
@@ -103,6 +103,7 @@ contract MimGmxVault is ReentrancyGuard {
             
             uint256 collateralAmount = IERC20(collateralToken).balanceOf(address(this));
             IERC20(collateralToken).safeTransfer(account, collateralAmount);
+            console.log("collateralAmount: %s", collateralAmount);
         }
         console.logBytes32(positionKey);
         console.log("isExecuted: %s", isExecuted);

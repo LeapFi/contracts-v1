@@ -10,7 +10,7 @@ import "../interface/uniswap/INonfungiblePositionManager.sol";
 import "../interface/gmx/IGmxPositionRouter.sol";
 import "../peripherals/UniHelper.sol";
 import "../protocols-manager/GmxManager.sol";
-import "../protocols-manager/UniV3Vault.sol";
+import "../protocols-manager/UniV3Manager.sol";
 import "./DerivioPositionManager.sol";
 import "./DerivioA.sol";
 import "./DerivioAStorage.sol";
@@ -35,7 +35,7 @@ contract PositionRouter is ReentrancyGuard {
         IUniswapV3Factory _uniFactory, 
         ISwapRouter _swapRouter,
         DerivioPositionManager _derivioPositionManager,
-        UniV3Vault _uniV3Vault,
+        UniV3Manager _uniV3Manager,
         GmxManager _gmxManager,
         address _token0,
         address _token1,
@@ -50,7 +50,7 @@ contract PositionRouter is ReentrancyGuard {
             _uniFactory,
             _swapRouter,
             _derivioPositionManager,
-            _uniV3Vault,
+            _uniV3Manager,
             _gmxManager,
             token0, 
             token1,
@@ -91,19 +91,15 @@ contract PositionRouter is ReentrancyGuard {
         }
     }
 
-    function getPairId(
-        uint32 _derivioId,
-        address _token0,
-        address _token1
-    ) public pure returns (bytes32 pairId) {
+    function getPairId(uint32 _derivioId, address _token0, address _token1) 
+        public pure returns (bytes32 pairId) 
+    {
         return keccak256(abi.encodePacked(_derivioId, _token0, _token1));
     }
 
-    function getDerivioAddress(
-        uint32 _derivioId,
-        address _token0,
-        address _token1
-    ) public view returns (address) {
+    function getDerivioAddress(uint32 _derivioId, address _token0, address _token1) 
+        public view returns (address) 
+    {
         return derivioAStorage.getAddress(getPairId(_derivioId, _token0, _token1));
     }
 
@@ -115,10 +111,10 @@ contract PositionRouter is ReentrancyGuard {
 
     function getGmxPosition(address _token0, address _token1) 
         public view
-        returns (uint256 sizeDelta, uint256 collateral)
+        returns (uint256, uint256)
     {
         bytes32 pairId = getPairId(derivioAId, _token0, _token1);
         address contractAddr = derivioAStorage.getAddress(pairId);
-        (sizeDelta, collateral) = DerivioA(contractAddr).getGmxPosition();
+        return DerivioA(contractAddr).getGmxPosition();
     }
 }

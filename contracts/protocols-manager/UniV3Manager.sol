@@ -13,7 +13,7 @@ import { FullMath } from "@arrakisfi/v3-lib-0.8/contracts/LiquidityAmounts.sol";
 import "../core/interface/IProtocolPosition.sol";
 import "hardhat/console.sol";
 
-contract UniV3Vault is ReentrancyGuard, IProtocolPosition {
+contract UniV3Manager is ReentrancyGuard, IProtocolPosition {
 
     using SafeERC20 for IERC20;
     IERC20 immutable token0;
