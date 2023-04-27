@@ -13,6 +13,7 @@ import {
   IPositionRouter,
 } from "../typechain";
 import { getAddresses, Addresses } from "../src/addresses";
+import { swap } from "../src/swap";
 import { setupContracts } from "../src/setupContracts";
 import { fundErc20 } from "../src/fundErc20";
 import { setPricesWithBitsAndExecute } from "../src/executeGmxPosition";
@@ -80,8 +81,8 @@ describe("DerivioA test", function () {
           tickLower: lowerTick,
           tickUpper: upperTick,
           feeTier: feeTier,
-          amount0Desired: 0,
-          amount1Desired: ethers.utils.parseUnits("1000", 6),
+          amount0Desired: await weth.balanceOf(owner.address),
+          amount1Desired: await usdc.balanceOf(owner.address),
           shortLeverage: 0,
           swapMaxSlippage: 0,
           shortMaxSlippage: 0,
@@ -93,13 +94,13 @@ describe("DerivioA test", function () {
       console.log(await derivioPositionManager.getAllPositions(owner.address));
 
       console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
-      console.log(174031535328595519 - 173260603813924286);
+      // console.log(174074702235888744 - 173193711205385178);
       // (await derivioPositionManager.getAllPositions(owner.address)).forEach((position, index) => {
       //   console.log(`Position #${index + 1}:`);
       //   console.log(`  Position Key: ${position.positionKey}`);
       //   position.protocolPosition.forEach((protocolPosition, protocolIndex) => {
       //     console.log(`  Protocol Position #${protocolIndex + 1}:`);
-      //     console.log(`    Protocol Vault: ${protocolPosition.protocolVault}`);
+      //     console.log(`    Protocol Vault: ${protocolPosition.protocolManager}`);
       //     console.log(`    Position Info: ${protocolPosition.positionInfo}`);
       //   });
       // });
@@ -217,14 +218,25 @@ describe("DerivioA test", function () {
     //     usdc.address,
     //     {value: ethers.utils.parseUnits("0.02", 18)}
     //   );
+
+      
+    //   const positionKeeper = await ethers.getImpersonatedSigner(addresses.GMXFastPriceFeed);
+    //   await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
+    //   await positionRouter.getGmxPosition(weth.address, usdc.address);
       
     //   // Use getAllPositions to retrieve the positions
     //   const positions = await derivioPositionManager.getAllPositions(owner.address);
     //   const positionKeys = positions.map(pos => pos.positionKey);
 
-    //   await positionRouter.closeDerivioA([positionKeys[0]], weth.address, usdc.address, {value: ethers.utils.parseUnits("0.0001", 18)});
+    //   await positionRouter.closeDerivioA(
+    //     [positionKeys[0]],
+    //     'true',
+    //     weth.address,
+    //     usdc.address,
+    //     { value: ethers.utils.parseUnits("0.0001", 18) }
+    //   );
 
-    //   const positionKeeper = await ethers.getImpersonatedSigner(addresses.GMXFastPriceFeed);
+    //   // const positionKeeper = await ethers.getImpersonatedSigner(addresses.GMXFastPriceFeed);
     //   await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
     //   await gmxPositionRouter.connect(positionKeeper).executeDecreasePositions(999999999, addresses.GMXFastPriceFeed);
 
@@ -236,6 +248,168 @@ describe("DerivioA test", function () {
       
     //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
     //   await positionRouter.getGmxPosition(weth.address, usdc.address);
+    // });
+
+    // it("#5 Open DerivioAS by Random initial amount0 & amount1", async function () {
+    //   const slot0 = await uniswapV3Pool.slot0();
+    //   const tickSpacing = await uniswapV3Pool.tickSpacing();
+
+    //   lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 25 * tickSpacing;
+    //   upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing;
+      
+    //   await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
+      
+    //   await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
+    //   await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
+
+    //   const randomSwapAmount = Math.floor(Math.random() * 1001);
+    //   await swap(swapRouter, feeTier, owner, usdc, weth, randomSwapAmount, 6);
+    //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+      
+    //   await positionRouter.openDerivioA(
+    //     {
+    //       recipient: owner.address,
+    //       tickLower: lowerTick,
+    //       tickUpper: upperTick,
+    //       feeTier: feeTier,
+    //       amount0Desired: await weth.balanceOf(owner.address),
+    //       amount1Desired: await usdc.balanceOf(owner.address),
+    //       shortLeverage: 0,
+    //       swapMaxSlippage: 0,
+    //       shortMaxSlippage: 0,
+    //     },
+    //     weth.address,
+    //     usdc.address,
+    //   );
+
+    //   console.log(await derivioPositionManager.getAllPositions(owner.address));
+    //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+    // });
+
+    // it("#6 Open DerivioAS upper than current price", async function () {
+    //   const slot0 = await uniswapV3Pool.slot0();
+    //   const tickSpacing = await uniswapV3Pool.tickSpacing();
+
+    //   lowerTick = slot0.tick - (slot0.tick % tickSpacing) + 25 * tickSpacing;
+    //   upperTick = slot0.tick - (slot0.tick % tickSpacing) + 40 * tickSpacing;
+      
+    //   await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
+      
+    //   await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
+    //   await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
+
+    //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+      
+    //   await positionRouter.openDerivioA(
+    //     {
+    //       recipient: owner.address,
+    //       tickLower: lowerTick,
+    //       tickUpper: upperTick,
+    //       feeTier: feeTier,
+    //       amount0Desired: await weth.balanceOf(owner.address),
+    //       amount1Desired: await usdc.balanceOf(owner.address),
+    //       shortLeverage: 0,
+    //       swapMaxSlippage: 0,
+    //       shortMaxSlippage: 0,
+    //     },
+    //     weth.address,
+    //     usdc.address,
+    //   );
+
+    //   console.log(await derivioPositionManager.getAllPositions(owner.address));
+    //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+    // });
+
+    // it("#7 Open DerivioAS lower than current price", async function () {
+    //   const slot0 = await uniswapV3Pool.slot0();
+    //   const tickSpacing = await uniswapV3Pool.tickSpacing();
+
+    //   lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 40 * tickSpacing;
+    //   upperTick = slot0.tick - (slot0.tick % tickSpacing) - 25 * tickSpacing;
+      
+    //   await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
+      
+    //   await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
+    //   await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
+
+    //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+      
+    //   await positionRouter.openDerivioA(
+    //     {
+    //       recipient: owner.address,
+    //       tickLower: lowerTick,
+    //       tickUpper: upperTick,
+    //       feeTier: feeTier,
+    //       amount0Desired: await weth.balanceOf(owner.address),
+    //       amount1Desired: await usdc.balanceOf(owner.address),
+    //       shortLeverage: 0,
+    //       swapMaxSlippage: 0,
+    //       shortMaxSlippage: 0,
+    //     },
+    //     weth.address,
+    //     usdc.address,
+    //   );
+
+    //   console.log(await derivioPositionManager.getAllPositions(owner.address));
+    //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+    // });
+
+    // it("#8 Open DerivioAS at the same range multiple time", async function () {
+    //   const slot0 = await uniswapV3Pool.slot0();
+    //   const tickSpacing = await uniswapV3Pool.tickSpacing();
+
+    //   lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 25 * tickSpacing;
+    //   upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing;
+      
+    //   await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
+      
+    //   await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
+    //   await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
+
+    //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+      
+    //   await positionRouter.openDerivioA(
+    //     {
+    //       recipient: owner.address,
+    //       tickLower: lowerTick,
+    //       tickUpper: upperTick,
+    //       feeTier: feeTier,
+    //       amount0Desired: await weth.balanceOf(owner.address),
+    //       amount1Desired: await usdc.balanceOf(owner.address),
+    //       shortLeverage: 0,
+    //       swapMaxSlippage: 0,
+    //       shortMaxSlippage: 0,
+    //     },
+    //     weth.address,
+    //     usdc.address,
+    //   );
+
+    //   await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
+      
+    //   await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
+    //   await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
+
+    //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+      
+    //   await positionRouter.openDerivioA(
+    //     {
+    //       recipient: owner.address,
+    //       tickLower: lowerTick,
+    //       tickUpper: upperTick,
+    //       feeTier: feeTier,
+    //       amount0Desired: await weth.balanceOf(owner.address),
+    //       amount1Desired: await usdc.balanceOf(owner.address),
+    //       shortLeverage: 0,
+    //       swapMaxSlippage: 0,
+    //       shortMaxSlippage: 0,
+    //     },
+    //     weth.address,
+    //     usdc.address,
+    //   );
+
+    //   console.log(await derivioPositionManager.getAllPositions(owner.address));
+
+    //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
     // });
 
   });

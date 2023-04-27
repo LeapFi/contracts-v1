@@ -7,7 +7,7 @@ import {
   ISwapRouter,
   IGmxPositionRouter,
   IGmxFastPriceFeed,
-  UniV3Vault,
+  UniV3Manager,
 } from "../typechain";
 import { getAddresses, Addresses } from "../src/addresses";
 
@@ -33,11 +33,10 @@ export async function setupContracts(feeTier: number) {
   const DerivioPositionManager = await ethers.getContractFactory("DerivioPositionManager");
   const derivioPositionManager = await DerivioPositionManager.deploy();
 
-  const UniV3Vault = await ethers.getContractFactory("UniV3Vault");
-  const uniV3Vault = await UniV3Vault.deploy(
+  const UniV3Manager = await ethers.getContractFactory("UniV3Manager");
+  const uniV3Manager = await UniV3Manager.deploy(
     addresses.UniswapV3Factory,
     addresses.SwapRouter,
-    addresses.NonfungiblePositionManager,
     weth.address,
     usdc.address,
   );
@@ -55,7 +54,7 @@ export async function setupContracts(feeTier: number) {
     uniswapV3Factory.address,
     swapRouter.address,
     derivioPositionManager.address,
-    uniV3Vault.address,
+    uniV3Manager.address,
     gmxManager.address,
     weth.address,
     usdc.address,
@@ -69,7 +68,7 @@ export async function setupContracts(feeTier: number) {
     addresses.UniswapV3Factory,
     addresses.SwapRouter,
     derivioPositionManager.address,
-    uniV3Vault.address,
+    uniV3Manager.address,
     gmxManager.address,
     weth.address,
     usdc.address,

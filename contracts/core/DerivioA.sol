@@ -88,7 +88,7 @@ contract DerivioA is ReentrancyGuard {
                
         // Prepare protocol open arguments
         DerivioPositionManager.ProtocolOpenArg[] memory openArgs = new DerivioPositionManager.ProtocolOpenArg[](1);
-        openArgs[0] = createUniV3ProtocolOpenArg(_args);
+        openArgs[0] = createUniV3ProtocolOpenArg(_args, sqrtPriceX96);
 
         token0.approve(address(uniV3Manager), _args.amount0Desired);
         token1.approve(address(uniV3Manager), _args.amount1Desired);
@@ -116,7 +116,7 @@ contract DerivioA is ReentrancyGuard {
 
         // Prepare protocol open arguments
         DerivioPositionManager.ProtocolOpenArg[] memory openArgs = new DerivioPositionManager.ProtocolOpenArg[](2);
-        openArgs[0] = createUniV3ProtocolOpenArg(_args);
+        openArgs[0] = createUniV3ProtocolOpenArg(_args, sqrtPriceX96);
 
         uint256 shortDelta = collateralAmount * 1;
         openArgs[1] = createGmxProtocolOpenArg(collateralAmount, shortDelta);
@@ -125,12 +125,25 @@ contract DerivioA is ReentrancyGuard {
         DerivioPositionManager.ProtocolPosition[] memory position = derivioPositionManager.openProtocolsPosition{ value: msg.value }(_args.recipient, openArgs);
     }
 
-    function createUniV3ProtocolOpenArg(PositionArgs memory _args) internal view returns (DerivioPositionManager.ProtocolOpenArg memory uniV3Arg) {
+    function createUniV3ProtocolOpenArg(PositionArgs memory _args, uint160 _sqrtPriceX96Current) 
+        internal view 
+        returns (DerivioPositionManager.ProtocolOpenArg memory uniV3Arg) 
+    {
+        uint160 sqrtPriceX96Lower = TickMath.getSqrtRatioAtTick(_args.tickLower);
+        uint160 sqrtPriceX96Upper = TickMath.getSqrtRatioAtTick(_args.tickUpper);
+        uint128 liquidityDesired = 
+            LiquidityAmounts.getLiquidityForAmounts(_sqrtPriceX96Current, sqrtPriceX96Lower, sqrtPriceX96Upper, _args.amount0Desired, _args.amount1Desired);
+        
+        console.log('liquidityDesired:', liquidityDesired);
+        console.log('_sqrtPriceX96Current:', _sqrtPriceX96Current);
+        console.log('amount0Desired:', _args.amount0Desired);
+        console.log('amount1Desired:', _args.amount1Desired);
+
         uniV3Arg = DerivioPositionManager.ProtocolOpenArg({
             protocolManager: address(uniV3Manager),
             senderValue: 0,
             fund: new IProtocolPosition.Fund[](2),
-            inputArgs: new bytes32[](5)
+            inputArgs: new bytes32[](6)
         });
 
         uniV3Arg.inputArgs[0] = bytes32(uint256(uint24(_args.tickLower)));
@@ -138,6 +151,7 @@ contract DerivioA is ReentrancyGuard {
         uniV3Arg.inputArgs[2] = bytes32(uint256(uint24(_args.feeTier)));
         uniV3Arg.inputArgs[3] = bytes32(_args.amount0Desired);
         uniV3Arg.inputArgs[4] = bytes32(_args.amount1Desired);
+        uniV3Arg.inputArgs[5] = bytes32(uint256(liquidityDesired));
 
         uniV3Arg.fund[0].token = address(token0);
         uniV3Arg.fund[1].token = address(token1);
