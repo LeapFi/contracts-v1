@@ -11,6 +11,9 @@ interface IProtocolPosition {
     function openPosition(address _account, bytes32[] calldata _args) external payable returns (bytes32[] memory);
     function closePosition(address _account, bytes32[] calldata _args) external payable returns (bytes32[] memory, Fund[] memory);
 
-    function receiveFund(address _fundingAcc, Fund[] memory _fund) external;
-    function returnFund(address _fundingAcc, Fund[] memory _fund) external;
+    function receiveFund(address _account, Fund[] memory _fund) external;
+    function returnFund(address _account, Fund[] memory _fund) external;
+    
+    function feesOf(bytes32 _positionKey) external returns (Fund[] memory); 
+    function claimFees(address _account, bytes32 _positionKey) external;
 }

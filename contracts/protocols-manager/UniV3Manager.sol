@@ -20,8 +20,8 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
     IERC20 immutable token1;
     IUniswapV3Factory private immutable uniFactory;
     ISwapRouter private immutable swapRouter;
-    IUniswapV3Pool v3Pool;
     bool minting;
+    IUniswapV3Pool pool;
 
     uint256 private constant FixedPoint128_Q128 = 0x100000000000000000000000000000000;
 
@@ -47,6 +47,7 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         int24 tickLower;
         int24 tickUpper;
         uint24 feeTier;
+        IUniswapV3Pool pool;
         uint128 liquidity;
     }
 
@@ -95,18 +96,18 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
 
         UniV3OpenArgs memory uniV3Args = convertBytes32ToOpenPositionArgs(_args);
 
-        v3Pool = IUniswapV3Pool(
+        pool = IUniswapV3Pool(
                     uniFactory.getPool(
                         address(token0),
                         address(token1),
                         uniV3Args.feeTier
                     ));
-        console.log('v3Pool:', address(v3Pool));
+        console.log('v3Pool:', address(pool));
         console.log('uniV3Args.liquidityDesired:', uniV3Args.liquidityDesired);
         console.log('amount0:', uniV3Args.amount0Desired);
         console.log('amount1:', uniV3Args.amount1Desired);
         
-        (uint160 sqrtPriceX96, , , , , , ) = v3Pool.slot0();
+        (uint160 sqrtPriceX96, , , , , , ) = pool.slot0();
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
                 sqrtPriceX96,
                 TickMath.getSqrtRatioAtTick(uniV3Args.tickLower),
@@ -118,7 +119,7 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         console.log('liquidity:', liquidity);
         console.log('sqrtPriceX96:', sqrtPriceX96);
         minting = true;
-        (uint256 amount0Minted, uint256 amount1Minted) = v3Pool.mint(address(this), uniV3Args.tickLower, uniV3Args.tickUpper, liquidity, abi.encode(address(this)));
+        (uint256 amount0Minted, uint256 amount1Minted) = pool.mint(address(this), uniV3Args.tickLower, uniV3Args.tickUpper, liquidity, abi.encode(address(this)));
 
         console.log('amount0:', uniV3Args.amount0Desired);
         console.log('amount1:', uniV3Args.amount1Desired);
@@ -129,8 +130,8 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         uint256 amount0 = uniV3Args.amount0Desired - amount0Minted;
         uint256 amount1 = uniV3Args.amount1Desired - amount1Minted;
 
-        bytes32 positionKey = addPositionInfo(_account, uniV3Args.tickLower, uniV3Args.tickUpper, uniV3Args.feeTier, uniV3Args.liquidityDesired);
-        returnFund(_account, amount0, amount1);
+        bytes32 positionKey = addPositionInfo(_account, uniV3Args.tickLower, uniV3Args.tickUpper, uniV3Args.feeTier, pool, uniV3Args.liquidityDesired);
+        returnFund(_account, constructFund(amount0, amount1));
         console.logBytes32(positionKey);
 
         bytes32[] memory result = new bytes32[](6);
@@ -156,7 +157,7 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         console.log('amount0:', amount0);
         console.log('amount1:', amount1);
 
-        require(msg.sender == address(v3Pool));
+        require(msg.sender == address(pool));
         require(minting == true);
         minting = false;
 
@@ -169,6 +170,7 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         int24 _tickLower, 
         int24 _tickUpper,
         uint24 _feeTier,
+        IUniswapV3Pool _pool,
         uint128 _liquidity
     )
         private
@@ -179,40 +181,14 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         uniV3Position.tickLower = _tickLower;
         uniV3Position.tickUpper = _tickUpper;
         uniV3Position.feeTier = _feeTier;
+        uniV3Position.pool = _pool;
         uniV3Position.liquidity = _liquidity;
 
         nextId[_account]++;
-        positionKey = getKey(_account, _tickLower, _tickUpper);
+        positionKey = keccak256(abi.encodePacked(_account, nextId[_account], _tickLower, _tickUpper));
 
         positionIds[_account].push(positionKey);
         liquidities[positionKey] = uniV3Position;
-    }
-
-    function computeUncollectedFee(uint128 accountLiquidity, int24 tickLower, int24 tickUpper)
-        internal
-        view
-        returns (
-            uint128 fee0,
-            uint128 fee1
-        )
-    {   
-        uint128 liquidity;
-        bytes32 positionKey = keccak256(abi.encodePacked(address(this), tickLower, tickUpper));
-        (liquidity, , , fee0, fee1) = v3Pool.positions(positionKey);
-
-        fee0 = uint128(FullMath.mulDiv(fee0, accountLiquidity, liquidity));
-        fee1 = uint128(FullMath.mulDiv(fee1, accountLiquidity, liquidity));
-
-        console.log('calculated fee...................');
-        console.log('liquidity:', liquidity);
-        console.log('fee0:', fee0);
-        console.log('fee1:', fee1);
-    }
-
-    function getKey(address _addr, int24 _tickLower, int24 _tickUpper) private view
-        returns (bytes32)
-    {
-        return keccak256(abi.encodePacked(_addr, nextId[_addr], _tickLower, _tickUpper));
     }
 
     function closePosition(address _account, bytes32[] calldata _args) 
@@ -225,11 +201,11 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         // Verify position exists (assuming the modifier was a function)
         require(liquidities[_positionKey].account == _account, "Position does not exist");
         
-        (uint128 fee0, uint128 fee1) = unCollectedFee(_positionKey);
-
         UniV3Position memory userLiquidity = positionOf(_positionKey);
-        (uint256 owed0, uint256 owed1) = v3Pool.burn(userLiquidity.tickLower, userLiquidity.tickUpper, userLiquidity.liquidity);
-        (uint256 amount0, uint256 amount1) = v3Pool.collect(address(this), userLiquidity.tickLower, userLiquidity.tickUpper, uint128(owed0 + fee0), uint128(owed1 + fee1));
+
+        (uint128 fee0, uint128 fee1) = unCollectedFee(_positionKey);
+        (uint256 owed0, uint256 owed1) = userLiquidity.pool.burn(userLiquidity.tickLower, userLiquidity.tickUpper, userLiquidity.liquidity);
+        (uint256 amount0, uint256 amount1) = userLiquidity.pool.collect(address(this), userLiquidity.tickLower, userLiquidity.tickUpper, uint128(owed0 + fee0), uint128(owed1 + fee1));
 
         removePositionKey(_account, _positionKey);
 
@@ -241,12 +217,7 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         returnedFund[0].amount = amount0;
         returnedFund[1].amount = amount1;
 
-        // returnFund(_account, collect0, collect1);
-
         bytes32[] memory result = new bytes32[](0);
-        // result[0] = bytes32(collect0);
-        // result[1] = bytes32(collect1);
-
         return (result, returnedFund);
     }
     
@@ -268,15 +239,9 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         }
     }
 
-    /// @notice Collects the fees associated with provided liquidity
-    /// @dev The contract must hold the erc721 token before it can collect fees
-    /// @param _tokenId The id of the erc721 token
-    /// @return amount0 The amount of fees collected in token0
-    /// @return amount1 The amount of fees collected in token1
     function collectAllFees(
         address _recipient, 
-        bytes32 _positionKey, 
-        uint256 _tokenId
+        bytes32 _positionKey
         ) 
         external 
         returns (uint256 amount0, uint256 amount1) 
@@ -284,8 +249,10 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         (uint128 fee0, uint128 fee1) = unCollectedFee(_positionKey);
         if (fee0 > 0 || fee1 > 0) {
             UniV3Position memory userLiquidity = positionOf(_positionKey);
-            (amount0, amount1) = v3Pool.collect(address(this), userLiquidity.tickLower, userLiquidity.tickUpper, fee0, fee1);
+            (amount0, amount1) = userLiquidity.pool.collect(address(this), userLiquidity.tickLower, userLiquidity.tickUpper, fee0, fee1);
         }
+
+        returnFund(_recipient, constructFund(amount0, amount1));
     }
 
     function unCollectedFee(bytes32 _positionKey) 
@@ -294,31 +261,58 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         returns (uint128 fee0, uint128 fee1) 
     {
         UniV3Position memory userLiquidity = positionOf(_positionKey);
-        (fee0, fee1) = computeUncollectedFee(userLiquidity.liquidity, userLiquidity.tickLower, userLiquidity.tickUpper);
+
+        uint128 liquidity;
+        bytes32 uniKey = keccak256(abi.encodePacked(address(this), userLiquidity.tickLower, userLiquidity.tickUpper));
+        (liquidity, , , fee0, fee1) = userLiquidity.pool.positions(uniKey);
+
+        fee0 = uint128(FullMath.mulDiv(fee0, userLiquidity.liquidity, liquidity));
+        fee1 = uint128(FullMath.mulDiv(fee1, userLiquidity.liquidity, liquidity));
 
         console.log("unCollectedFee.....");
         console.log("fee0: ", fee0);
         console.log("fee1: ", fee1);
     }
 
-    function receiveFund(address _fundingAcc, Fund[] memory _fund) external {
-        
-        for (uint i = 0; i < _fund.length; i++) {
-            IERC20(_fund[i].token).safeTransferFrom(_fundingAcc, address(this), _fund[i].amount);
-        }
-    }
-
-    function returnFund(address _fundingAcc, Fund[] memory _fund) external {
-        
-        for (uint i = 0; i < _fund.length; i++) {
-            IERC20(_fund[i].token).safeTransfer(_fundingAcc, _fund[i].amount);
-        }
-    }
-
-    function returnFund(address _account, uint256 _amount0, uint256 _amount1) 
-        internal 
+    function constructFund(uint256 amount0, uint256 amount1) internal returns (Fund[] memory fund)
     {
-        token0.safeTransfer(_account, _amount0);
-        token1.safeTransfer(_account, _amount1);
+        fund = new Fund[](2);
+
+        fund[0].token = address(token0);
+        fund[1].token = address(token1);
+
+        fund[0].amount = amount0;
+        fund[1].amount = amount1;
+    }
+
+    function feesOf(bytes32 _positionKey) external returns (Fund[] memory) 
+    {
+        (uint128 fee0, uint128 fee1) = unCollectedFee(_positionKey);
+        return constructFund(fee0, fee1);
+    }
+
+    function claimFees(address _account, bytes32 _positionKey) external 
+    {
+        (uint128 fee0, uint128 fee1) = unCollectedFee(_positionKey);
+        if (fee0 > 0 || fee1 > 0) {
+            UniV3Position memory userLiquidity = positionOf(_positionKey);
+            (uint256 amount0, uint256 amount1) = userLiquidity.pool.collect(address(this), userLiquidity.tickLower, userLiquidity.tickUpper, fee0, fee1);
+
+            returnFund(_account, constructFund(amount0, amount1));
+        }
+    }
+
+    function receiveFund(address _account, Fund[] memory _fund) external 
+    {
+        for (uint i = 0; i < _fund.length; i++) {
+            IERC20(_fund[i].token).safeTransferFrom(_account, address(this), _fund[i].amount);
+        }
+    }
+
+    function returnFund(address _account, Fund[] memory _fund) public 
+    {
+        for (uint i = 0; i < _fund.length; i++) {
+            IERC20(_fund[i].token).safeTransfer(_account, _fund[i].amount);
+        }
     }
 }

@@ -97,8 +97,8 @@ contract MimGmxPosition is ReentrancyGuard {
         getGmxPosition();
     }
 
-    function gmxPositionCallback(bytes32 positionKey, bool isExecuted, bool isIncrease) external {
-
+    function gmxPositionCallback(bytes32 positionKey, bool isExecuted, bool isIncrease) external 
+    {
         if (!isIncrease) {
             
             uint256 collateralAmount = IERC20(collateralToken).balanceOf(address(this));

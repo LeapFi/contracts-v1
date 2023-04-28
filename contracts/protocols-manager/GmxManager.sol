@@ -106,17 +106,27 @@ contract GmxManager is ReentrancyGuard, IProtocolPosition {
         return mimGmxPositionCont.getGmxPosition();
     }
 
-    function receiveFund(address _fundingAcc, Fund[] memory _fund) external {
-        
+    function receiveFund(address _account, Fund[] memory _fund) external 
+    {
         for (uint i = 0; i < _fund.length; i++) {
-            IERC20(_fund[i].token).safeTransferFrom(_fundingAcc, address(this), _fund[i].amount);
+            IERC20(_fund[i].token).safeTransferFrom(_account, address(this), _fund[i].amount);
         }
     }
 
-    function returnFund(address _fundingAcc, Fund[] memory _fund) external {
-        
+    function returnFund(address _account, Fund[] memory _fund) external 
+    {
         for (uint i = 0; i < _fund.length; i++) {
-            IERC20(_fund[i].token).safeTransfer(_fundingAcc, _fund[i].amount);
+            IERC20(_fund[i].token).safeTransfer(_account, _fund[i].amount);
         }
+    }
+
+    function feesOf(bytes32 _positionKey) external returns (Fund[] memory) 
+    {
+        return new Fund[](0);
+    }
+
+    function claimFees(address _account, bytes32 _positionKey) external 
+    {
+
     }
 }
