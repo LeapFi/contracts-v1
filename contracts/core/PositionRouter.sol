@@ -81,13 +81,21 @@ contract PositionRouter is ReentrancyGuard {
     }
 
     function closeDerivioA(bytes32[] memory _positionKeys, bool _swapToCollateral, address _token0, address _token1) 
-            external payable nonReentrant 
+        external payable nonReentrant 
     {
         bytes32 pairId = getPairId(derivioAId, _token0, _token1);
         address contractAddr = derivioAStorage.getAddress(pairId);
 
         for (uint i = 0; i < _positionKeys.length; i++) {
             DerivioA(contractAddr).closePosition{ value: msg.value }(msg.sender, _positionKeys[i], _swapToCollateral);
+        }
+    }
+
+    function claimFees(bytes32[] memory _positionKeys)
+        public
+    {
+        for (uint i = 0; i < _positionKeys.length; i++) {
+            derivioPositionManager.claimFees(msg.sender, _positionKeys[i]);
         }
     }
 

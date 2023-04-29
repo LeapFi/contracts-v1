@@ -38,7 +38,7 @@ contract GmxManager is ReentrancyGuard, IProtocolPosition {
 
     function openPosition(address _account, bytes32[] calldata _args)
         external payable override
-        returns (bytes32[] memory)
+        returns (bytes32 key_, bytes32[] memory result_)
     {
         // Parse the input arguments
         address _collateralToken = address(uint160(uint256(_args[0])));
@@ -70,10 +70,8 @@ contract GmxManager is ReentrancyGuard, IProtocolPosition {
         );
         mimGmxPosition.getGmxPosition();
 
-        bytes32[] memory result = new bytes32[](1);
-        result[0] = bytes32(uint256(uint160(address(mimGmxPosition))));
-
-        return result;
+        result_ = new bytes32[](1);
+        result_[0] = bytes32(uint256(uint160(address(mimGmxPosition))));
     }
 
     function closePosition(address _account, bytes32[] calldata _args)
@@ -120,7 +118,7 @@ contract GmxManager is ReentrancyGuard, IProtocolPosition {
         }
     }
 
-    function feesOf(bytes32 _positionKey) external returns (Fund[] memory) 
+    function feesOf(bytes32 _positionKey) external view returns (Fund[] memory) 
     {
         return new Fund[](0);
     }

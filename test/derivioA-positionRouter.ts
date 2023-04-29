@@ -18,6 +18,7 @@ import { setupContracts } from "../src/setupContracts";
 import { fundErc20 } from "../src/fundErc20";
 import { setPricesWithBitsAndExecute } from "../src/executeGmxPosition";
 
+
 describe("DerivioA test", function () {
   
   let feeTier = 500;
@@ -38,6 +39,35 @@ describe("DerivioA test", function () {
   let positionRouter: IPositionRouter;
   let derivioPositionManager: DerivioPositionManager;
   let contracts: any;
+
+  async function openDerivioA(tickLowerOffset: number, tickUpperOffset: number, shortLeverage: number) {
+    const slot0 = await uniswapV3Pool.slot0();
+    const tickSpacing = await uniswapV3Pool.tickSpacing();
+  
+    const lowerTick = slot0.tick - (slot0.tick % tickSpacing) + tickLowerOffset * tickSpacing;
+    const upperTick = slot0.tick - (slot0.tick % tickSpacing) + tickUpperOffset * tickSpacing;
+  
+    await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
+  
+    await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
+    await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
+  
+    await positionRouter.openDerivioA(
+      {
+        recipient: owner.address,
+        tickLower: lowerTick,
+        tickUpper: upperTick,
+        feeTier: feeTier,
+        amount0Desired: await weth.balanceOf(owner.address),
+        amount1Desired: await usdc.balanceOf(owner.address),
+        shortLeverage: shortLeverage,
+        swapMaxSlippage: 0,
+        shortMaxSlippage: 0,
+      },
+      weth.address,
+      usdc.address,
+    );
+  }
 
   // Reuse the same setup in every test.
   beforeEach("Setting contracts", async function () {
@@ -62,35 +92,8 @@ describe("DerivioA test", function () {
   describe("PositionRouter control flow", function () {
 
     it("#1 open DerivioAS by Position Router", async function () {
-      const slot0 = await uniswapV3Pool.slot0();
-      const tickSpacing = await uniswapV3Pool.tickSpacing();
 
-      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 25 * tickSpacing;
-      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing;
-      
-      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
-      
-      await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
-      await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
-
-      console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
-      
-      await positionRouter.openDerivioA(
-        {
-          recipient: owner.address,
-          tickLower: lowerTick,
-          tickUpper: upperTick,
-          feeTier: feeTier,
-          amount0Desired: await weth.balanceOf(owner.address),
-          amount1Desired: await usdc.balanceOf(owner.address),
-          shortLeverage: 0,
-          swapMaxSlippage: 0,
-          shortMaxSlippage: 0,
-        },
-        weth.address,
-        usdc.address,
-      );
-
+      await openDerivioA(-25, 10, 0);
       console.log(await derivioPositionManager.getAllPositions(owner.address));
 
       console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
@@ -143,34 +146,8 @@ describe("DerivioA test", function () {
     });
 
     it("#3 close DerivioAS by Position Router", async function () {
-      const slot0 = await uniswapV3Pool.slot0();
-      const tickSpacing = await uniswapV3Pool.tickSpacing();
-  
-      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 250 * tickSpacing;
-      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 100 * tickSpacing;
-  
-      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
-  
-      await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
-      await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
-  
-      console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
-  
-      await positionRouter.openDerivioA(
-          {
-              recipient: owner.address,
-              tickLower: lowerTick,
-              tickUpper: upperTick,
-              feeTier: feeTier,
-              amount0Desired: 0,
-              amount1Desired: ethers.utils.parseUnits("1000", 6),
-              shortLeverage: 0,
-              swapMaxSlippage: 0,
-              shortMaxSlippage: 0,
-          },
-          weth.address,
-          usdc.address
-      );
+      
+      await openDerivioA(-250, 100, 0);
   
       // Use getAllPositions to retrieve the positions
       const positions = await derivioPositionManager.getAllPositions(owner.address);
@@ -216,7 +193,7 @@ describe("DerivioA test", function () {
         },
         weth.address,
         usdc.address,
-        {value: ethers.utils.parseUnits("0.02", 18)}
+        { value: ethers.utils.parseUnits("0.02", 18) }
       );
 
       
@@ -251,165 +228,74 @@ describe("DerivioA test", function () {
     });
 
     it("#5 Open DerivioAS by Random initial amount0 & amount1", async function () {
-      const slot0 = await uniswapV3Pool.slot0();
-      const tickSpacing = await uniswapV3Pool.tickSpacing();
-
-      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 25 * tickSpacing;
-      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing;
       
-      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
-      
-      await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
-      await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
-
-      const randomSwapAmount = Math.floor(Math.random() * 1001);
-      await swap(swapRouter, feeTier, owner, usdc, weth, randomSwapAmount, 6);
-      console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
-      
-      await positionRouter.openDerivioA(
-        {
-          recipient: owner.address,
-          tickLower: lowerTick,
-          tickUpper: upperTick,
-          feeTier: feeTier,
-          amount0Desired: await weth.balanceOf(owner.address),
-          amount1Desired: await usdc.balanceOf(owner.address),
-          shortLeverage: 0,
-          swapMaxSlippage: 0,
-          shortMaxSlippage: 0,
-        },
-        weth.address,
-        usdc.address,
-      );
-
+      await openDerivioA(-25, 10, 0);
       console.log(await derivioPositionManager.getAllPositions(owner.address));
       console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
     });
 
     it("#6 Open DerivioAS upper than current price", async function () {
-      const slot0 = await uniswapV3Pool.slot0();
-      const tickSpacing = await uniswapV3Pool.tickSpacing();
-
-      lowerTick = slot0.tick - (slot0.tick % tickSpacing) + 25 * tickSpacing;
-      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 40 * tickSpacing;
       
-      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
-      
-      await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
-      await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
-
       console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
       
-      await positionRouter.openDerivioA(
-        {
-          recipient: owner.address,
-          tickLower: lowerTick,
-          tickUpper: upperTick,
-          feeTier: feeTier,
-          amount0Desired: await weth.balanceOf(owner.address),
-          amount1Desired: await usdc.balanceOf(owner.address),
-          shortLeverage: 0,
-          swapMaxSlippage: 0,
-          shortMaxSlippage: 0,
-        },
-        weth.address,
-        usdc.address,
-      );
-
+      await openDerivioA(25, 40, 0);
       console.log(await derivioPositionManager.getAllPositions(owner.address));
       console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
     });
 
     it("#7 Open DerivioAS lower than current price", async function () {
-      const slot0 = await uniswapV3Pool.slot0();
-      const tickSpacing = await uniswapV3Pool.tickSpacing();
-
-      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 40 * tickSpacing;
-      upperTick = slot0.tick - (slot0.tick % tickSpacing) - 25 * tickSpacing;
       
-      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
-      
-      await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
-      await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
-
       console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
       
-      await positionRouter.openDerivioA(
-        {
-          recipient: owner.address,
-          tickLower: lowerTick,
-          tickUpper: upperTick,
-          feeTier: feeTier,
-          amount0Desired: await weth.balanceOf(owner.address),
-          amount1Desired: await usdc.balanceOf(owner.address),
-          shortLeverage: 0,
-          swapMaxSlippage: 0,
-          shortMaxSlippage: 0,
-        },
-        weth.address,
-        usdc.address,
-      );
-
+      await openDerivioA(-40, -25, 0);
       console.log(await derivioPositionManager.getAllPositions(owner.address));
       console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
     });
 
     it("#8 Open DerivioAS at the same range multiple time", async function () {
-      const slot0 = await uniswapV3Pool.slot0();
-      const tickSpacing = await uniswapV3Pool.tickSpacing();
-
-      lowerTick = slot0.tick - (slot0.tick % tickSpacing) - 25 * tickSpacing;
-      upperTick = slot0.tick - (slot0.tick % tickSpacing) + 10 * tickSpacing;
-      
-      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
-      
-      await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
-      await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
 
       console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
       
-      await positionRouter.openDerivioA(
-        {
-          recipient: owner.address,
-          tickLower: lowerTick,
-          tickUpper: upperTick,
-          feeTier: feeTier,
-          amount0Desired: await weth.balanceOf(owner.address),
-          amount1Desired: await usdc.balanceOf(owner.address),
-          shortLeverage: 0,
-          swapMaxSlippage: 0,
-          shortMaxSlippage: 0,
-        },
-        weth.address,
-        usdc.address,
-      );
-
-      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
-      
-      await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
-      await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
-
+      await openDerivioA(-25, 10, 0);
       console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
       
-      await positionRouter.openDerivioA(
-        {
-          recipient: owner.address,
-          tickLower: lowerTick,
-          tickUpper: upperTick,
-          feeTier: feeTier,
-          amount0Desired: await weth.balanceOf(owner.address),
-          amount1Desired: await usdc.balanceOf(owner.address),
-          shortLeverage: 0,
-          swapMaxSlippage: 0,
-          shortMaxSlippage: 0,
-        },
-        weth.address,
-        usdc.address,
-      );
-
+      await openDerivioA(-25, 10, 0);
       console.log(await derivioPositionManager.getAllPositions(owner.address));
+      console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+    });
+
+    it("#9 Position in Uniswap have fees", async function () {
 
       console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+      
+      await openDerivioA(-25, 10, 0);
+      await openDerivioA(-25, 10, 0); // For swap and generating fees
+      
+      // await fundErc20(usdc, addresses.USDCWhale, owner.address, 100000, 6);
+      // await swap(swapRouter, feeTier, owner, usdc, weth, 100000, 6);
+
+      const positions = await derivioPositionManager.getAllPositions(owner.address);
+      const positionKeys = positions.map(pos => pos.positionKey);
+
+      const feesBefore = await derivioPositionManager.feeOf(positionKeys[0]);
+      console.log("Fees before:", JSON.stringify(feesBefore, null, 2));
+      console.log(feesBefore);
+      console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+
+      const wethBalanceBefore = await weth.balanceOf(owner.address);
+      const usdcBalanceBefore = await usdc.balanceOf(owner.address);
+
+      await derivioPositionManager.claimFees(owner.address, positionKeys[0]);
+
+      const wethBalanceAfter = await weth.balanceOf(owner.address);
+      const usdcBalanceAfter = await usdc.balanceOf(owner.address);
+      console.log("weth: " + wethBalanceAfter + "  usdc: " + usdcBalanceAfter);
+      
+      const fee0 = feesBefore[0].fees[0].amount.toNumber();
+      const fee1 = feesBefore[0].fees[1].amount.toNumber();
+
+      expect(wethBalanceAfter.sub(wethBalanceBefore)).to.eq(fee0);
+      expect(usdcBalanceAfter.sub(usdcBalanceBefore)).to.eq(fee1);
     });
 
   });

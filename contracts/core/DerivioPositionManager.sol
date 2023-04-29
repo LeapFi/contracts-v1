@@ -20,7 +20,9 @@ contract DerivioPositionManager is ReentrancyGuard {
 
     struct ProtocolPosition {
         address protocolManager;
+        bytes32 key;
         bytes32[] positionInfo;
+        // IProtocolPosition.Fund[] fees;
     }
 
     struct ProtocolOpenArg {
@@ -40,6 +42,11 @@ contract DerivioPositionManager is ReentrancyGuard {
         address protocolManager;
         bytes32[] positionInfo;
         IProtocolPosition.Fund[] fund;
+    }
+
+    struct ProtocolFees {
+        address protocolManager;
+        IProtocolPosition.Fund[] fees;
     }
 
     function verifyPositionOwner(address _account, bytes32 _positionKey) internal view {
@@ -68,10 +75,14 @@ contract DerivioPositionManager is ReentrancyGuard {
         for (uint i = 0; i < _args.length; i++) {
 
             IProtocolPosition(_args[i].protocolManager).receiveFund(msg.sender, _args[i].fund);
+            (bytes32 key, bytes32[] memory openResult) = IProtocolPosition(_args[i].protocolManager)
+                .openPosition{ value: _args[i].senderValue }(_account, _args[i].inputArgs);
 
             result_[i] = ProtocolPosition({
                 protocolManager: _args[i].protocolManager,
-                positionInfo: IProtocolPosition(_args[i].protocolManager).openPosition{ value: _args[i].senderValue }(_account, _args[i].inputArgs)
+                key: key,
+                positionInfo: openResult
+                // fees: new IProtocolPosition.Fund[](0)
             });
         }
 
@@ -131,6 +142,31 @@ contract DerivioPositionManager is ReentrancyGuard {
                 // The element has been removed, no need to continue the loop
                 return;
             }
+        }
+    }
+
+    function feeOf(bytes32 _positionKey)
+        public view
+        returns (ProtocolFees[] memory result_)
+    {
+        ProtocolPosition[] memory positions = positionOf(_positionKey);
+
+        result_ = new ProtocolFees[](positions.length);
+        for (uint i = 0; i < positions.length; i++) {
+            result_[i].protocolManager = positions[i].protocolManager;
+            result_[i].fees = IProtocolPosition(positions[i].protocolManager).feesOf(positions[i].key);
+        }
+    }
+
+    function claimFees(address _account, bytes32 _positionKey)
+        public
+    {
+        verifyPositionOwner(_account, _positionKey);
+        
+        ProtocolPosition[] memory positions = positionOf(_positionKey);
+
+        for (uint i = 0; i < positions.length; i++) {
+            IProtocolPosition(positions[i].protocolManager).claimFees(_account, positions[i].key);
         }
     }
 

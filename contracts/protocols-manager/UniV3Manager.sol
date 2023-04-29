@@ -92,8 +92,10 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         });
     }
 
-    function openPosition(address _account, bytes32[] calldata _args) external payable override returns (bytes32[] memory) {
-
+    function openPosition(address _account, bytes32[] calldata _args) 
+        external payable override 
+        returns (bytes32 key_, bytes32[] memory result_) 
+    {
         UniV3OpenArgs memory uniV3Args = convertBytes32ToOpenPositionArgs(_args);
 
         pool = IUniswapV3Pool(
@@ -130,21 +132,18 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         uint256 amount0 = uniV3Args.amount0Desired - amount0Minted;
         uint256 amount1 = uniV3Args.amount1Desired - amount1Minted;
 
-        bytes32 positionKey = addPositionInfo(_account, uniV3Args.tickLower, uniV3Args.tickUpper, uniV3Args.feeTier, pool, uniV3Args.liquidityDesired);
+        key_ = addPositionInfo(_account, uniV3Args.tickLower, uniV3Args.tickUpper, uniV3Args.feeTier, pool, uniV3Args.liquidityDesired);
         returnFund(_account, constructFund(amount0, amount1));
-        console.logBytes32(positionKey);
 
-        bytes32[] memory result = new bytes32[](6);
-        result[0] = positionKey;
+        result_ = new bytes32[](6);
+        result_[0] = key_;
         // result[1] = bytes32(0);
-        result[2] = bytes32(uint256(uniV3Args.liquidityDesired));
-        result[3] = bytes32(amount0);
-        result[4] = bytes32(amount1);
-        result[5] = bytes32(uint256(uniV3Args.feeTier));
+        result_[2] = bytes32(uint256(uniV3Args.liquidityDesired));
+        result_[3] = bytes32(amount0);
+        result_[4] = bytes32(amount1);
+        result_[5] = bytes32(uint256(uniV3Args.feeTier));
 
-        unCollectedFee(positionKey);
-
-        return result;
+        unCollectedFee(key_);
     }
 
     /// @notice Callback function of uniswapV3Pool mint
@@ -274,7 +273,7 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         console.log("fee1: ", fee1);
     }
 
-    function constructFund(uint256 amount0, uint256 amount1) internal returns (Fund[] memory fund)
+    function constructFund(uint256 amount0, uint256 amount1) internal view returns (Fund[] memory fund)
     {
         fund = new Fund[](2);
 
@@ -285,7 +284,7 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         fund[1].amount = amount1;
     }
 
-    function feesOf(bytes32 _positionKey) external returns (Fund[] memory) 
+    function feesOf(bytes32 _positionKey) external view returns (Fund[] memory) 
     {
         (uint128 fee0, uint128 fee1) = unCollectedFee(_positionKey);
         return constructFund(fee0, fee1);
