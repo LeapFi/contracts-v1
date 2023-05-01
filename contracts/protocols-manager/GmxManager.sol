@@ -36,16 +36,17 @@ contract GmxManager is ReentrancyGuard, IProtocolPosition {
         gmxVault = _gmxVault;
     }
 
-    function openPosition(address _account, bytes32[] calldata _args)
+    function openPosition(address _account, bytes calldata _args)
         external payable override
-        returns (bytes32 key_, bytes32[] memory result_)
+        returns (bytes32 key_, bytes memory result_)
     {
-        // Parse the input arguments
-        address _collateralToken = address(uint160(uint256(_args[0])));
-        address _indexToken = address(uint160(uint256(_args[1])));
-        uint256 _collateralAmount = uint256(_args[2]);
-        uint256 _shortDelta = uint256(_args[3]);
-        uint256 _acceptPrice = uint256(_args[4]);
+        (
+            address _collateralToken,
+            address _indexToken,
+            uint256 _collateralAmount,
+            uint256 _shortDelta,
+            uint256 _acceptPrice
+        ) = abi.decode(_args, (address, address, uint256, uint256, uint256));
 
         require(_shortDelta >= _collateralAmount, "delta size too small");
 
@@ -70,18 +71,19 @@ contract GmxManager is ReentrancyGuard, IProtocolPosition {
         );
         mimGmxPosition.getGmxPosition();
 
-        result_ = new bytes32[](1);
-        result_[0] = bytes32(uint256(uint160(address(mimGmxPosition))));
+        key_ = bytes32(uint256(uint160(address(mimGmxPosition))));
     }
 
-    function closePosition(address _account, bytes32[] calldata _args)
+    function closePosition(address _account, bytes calldata _args)
         external payable override
-        returns (bytes32[] memory, Fund[] memory) 
+        returns (bytes memory, Fund[] memory) 
     {
         // Parse the input arguments
-        address mimGmxPositionAddress = address(uint160(uint256(_args[0])));
-        uint256 _minOut = uint256(_args[1]);
-        uint256 _acceptablePrice = uint256(_args[2]);
+        (
+            address mimGmxPositionAddress,
+            uint256 _minOut,
+            uint256 _acceptablePrice
+        ) = abi.decode(_args, (address, uint256, uint256));
 
         // Ensure that the position actually exists
         require(mimGmxPositionAddress != address(0), "GMX position not found");
@@ -90,8 +92,7 @@ contract GmxManager is ReentrancyGuard, IProtocolPosition {
         MimGmxPosition(mimGmxPositionAddress).closeGmxShort{value: msg.value}(_account, _minOut, _acceptablePrice);
 
         // Currently, there are no return values for closePosition
-        bytes32[] memory result = new bytes32[](0);
-
+        bytes memory result = abi.encode(new bytes32[](0));
         IProtocolPosition.Fund[] memory returnedFund = new IProtocolPosition.Fund[](0); 
 
         return (result, returnedFund);
@@ -118,12 +119,12 @@ contract GmxManager is ReentrancyGuard, IProtocolPosition {
         }
     }
 
-    function feesOf(bytes32 _positionKey) external view returns (Fund[] memory) 
+    function feesOf(bytes32 _key) external view returns (Fund[] memory) 
     {
         return new Fund[](0);
     }
 
-    function claimFees(address _account, bytes32 _positionKey) external 
+    function claimFees(address _account, bytes32 _key) external 
     {
 
     }

@@ -21,7 +21,7 @@ contract DerivioPositionManager is ReentrancyGuard {
     struct ProtocolPosition {
         address protocolManager;
         bytes32 key;
-        bytes32[] positionInfo;
+        bytes positionInfo;
         // IProtocolPosition.Fund[] fees;
     }
 
@@ -29,18 +29,18 @@ contract DerivioPositionManager is ReentrancyGuard {
         address protocolManager;
         uint256 senderValue;
         IProtocolPosition.Fund[] fund;
-        bytes32[] inputArgs;
+        bytes inputArgs;
     }
 
     struct ProtocolCloseArg {
         address protocolManager;
         uint256 senderValue;
-        bytes32[] inputArgs;
+        bytes inputArgs;
     }
 
     struct ProtocolCloseInfo {
         address protocolManager;
-        bytes32[] positionInfo;
+        bytes positionInfo;
         IProtocolPosition.Fund[] fund;
     }
 
@@ -75,7 +75,7 @@ contract DerivioPositionManager is ReentrancyGuard {
         for (uint i = 0; i < _args.length; i++) {
 
             IProtocolPosition(_args[i].protocolManager).receiveFund(msg.sender, _args[i].fund);
-            (bytes32 key, bytes32[] memory openResult) = IProtocolPosition(_args[i].protocolManager)
+            (bytes32 key, bytes memory openResult) = IProtocolPosition(_args[i].protocolManager)
                 .openPosition{ value: _args[i].senderValue }(_account, _args[i].inputArgs);
 
             result_[i] = ProtocolPosition({
@@ -100,7 +100,7 @@ contract DerivioPositionManager is ReentrancyGuard {
 
             IProtocolPosition protocolManager = IProtocolPosition(_args[i].protocolManager);
 
-            (bytes32[] memory positionInfo, IProtocolPosition.Fund[] memory closedFund) = 
+            (bytes memory positionInfo, IProtocolPosition.Fund[] memory closedFund) = 
                 protocolManager.closePosition{ value: _args[i].senderValue }(_account, _args[i].inputArgs);
 
             protocolManager.returnFund(msg.sender, closedFund);

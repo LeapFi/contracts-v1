@@ -30,7 +30,7 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
     // user address => positionIds
     mapping(address => bytes32[]) public positionIds;
 
-    // positionKey => ComposedLiquidity
+    // key => ComposedLiquidity
     mapping(bytes32 => UniV3Position) liquidities;
 
     struct UniV3OpenArgs {
@@ -51,9 +51,9 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         uint128 liquidity;
     }
 
-    modifier verifyPositionExists(address _account, bytes32 _positionKey) {
+    modifier verifyPositionExists(address _account, bytes32 _key) {
 
-        require(liquidities[_positionKey].account == _account, "Position does not exist for the given account");
+        require(liquidities[_key].account == _account, "Position does not exist for the given account");
         _;
     }
 
@@ -78,25 +78,39 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         return liquidities[_positionId];
     }
 
-    function convertBytes32ToOpenPositionArgs(bytes32[] memory _args) internal returns (UniV3OpenArgs memory) {
+    function convertBytes32ToOpenPositionArgs(bytes memory _args) internal returns (UniV3OpenArgs memory) {
 
-        require(_args.length == 6, "Invalid number of arguments");
+        (   int24 tickLower, 
+            int24 tickUpper, 
+            uint24 feeTier, 
+            uint256 amount0Desired, 
+            uint256 amount1Desired, 
+            uint128 liquidityDesired
+        ) = abi.decode(_args, (int24, int24, uint24, uint256, uint256, uint128));
         
         return UniV3OpenArgs({
-            tickLower: int24(uint24(uint256(_args[0]))),
-            tickUpper: int24(uint24(uint256(_args[1]))),
-            feeTier: uint24(uint256(_args[2])),
-            amount0Desired: uint256(_args[3]),
-            amount1Desired: uint256(_args[4]),
-            liquidityDesired: uint128(uint256(_args[5])) 
+            tickLower: tickLower,
+            tickUpper: tickUpper,
+            feeTier: feeTier,
+            amount0Desired: amount0Desired,
+            amount1Desired: amount1Desired,
+            liquidityDesired: liquidityDesired
         });
     }
 
-    function openPosition(address _account, bytes32[] calldata _args) 
+    function openPosition(address _account, bytes calldata _args) 
         external payable override 
-        returns (bytes32 key_, bytes32[] memory result_) 
+        returns (bytes32 key_, bytes memory result_) 
     {
         UniV3OpenArgs memory uniV3Args = convertBytes32ToOpenPositionArgs(_args);
+
+        // (   int24 tickLower, 
+        //     int24 tickUpper, 
+        //     uint24 feeTier, 
+        //     uint256 amount0Desired, 
+        //     uint256 amount1Desired, 
+        //     uint128 liquidityDesired
+        // ) = abi.decode(_args, (int24, int24, uint24, uint256, uint256, uint128));
 
         pool = IUniswapV3Pool(
                     uniFactory.getPool(
@@ -105,7 +119,7 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
                         uniV3Args.feeTier
                     ));
         console.log('v3Pool:', address(pool));
-        console.log('uniV3Args.liquidityDesired:', uniV3Args.liquidityDesired);
+        console.log('liquidityDesired:', uniV3Args.liquidityDesired);
         console.log('amount0:', uniV3Args.amount0Desired);
         console.log('amount1:', uniV3Args.amount1Desired);
         
@@ -132,16 +146,15 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         uint256 amount0 = uniV3Args.amount0Desired - amount0Minted;
         uint256 amount1 = uniV3Args.amount1Desired - amount1Minted;
 
-        key_ = addPositionInfo(_account, uniV3Args.tickLower, uniV3Args.tickUpper, uniV3Args.feeTier, pool, uniV3Args.liquidityDesired);
+        key_ = addPositionInfo(_account, uniV3Args.tickLower, uniV3Args.tickUpper, uniV3Args.feeTier, pool, liquidity);
         returnFund(_account, constructFund(amount0, amount1));
 
-        result_ = new bytes32[](6);
-        result_[0] = key_;
-        // result[1] = bytes32(0);
-        result_[2] = bytes32(uint256(uniV3Args.liquidityDesired));
-        result_[3] = bytes32(amount0);
-        result_[4] = bytes32(amount1);
-        result_[5] = bytes32(uint256(uniV3Args.feeTier));
+        result_ = abi.encode(
+            liquidity,
+            amount0,
+            amount1,
+            uniV3Args.feeTier
+        ); 
 
         unCollectedFee(key_);
     }
@@ -173,7 +186,7 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         uint128 _liquidity
     )
         private
-        returns (bytes32 positionKey)
+        returns (bytes32 key)
     {
         UniV3Position memory uniV3Position;
         uniV3Position.account = _account;
@@ -184,29 +197,29 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         uniV3Position.liquidity = _liquidity;
 
         nextId[_account]++;
-        positionKey = keccak256(abi.encodePacked(_account, nextId[_account], _tickLower, _tickUpper));
+        key = keccak256(abi.encodePacked(_account, nextId[_account], _tickLower, _tickUpper));
 
-        positionIds[_account].push(positionKey);
-        liquidities[positionKey] = uniV3Position;
+        positionIds[_account].push(key);
+        liquidities[key] = uniV3Position;
     }
 
-    function closePosition(address _account, bytes32[] calldata _args) 
+    function closePosition(address _account, bytes calldata _args) 
         external payable override 
-        returns (bytes32[] memory, Fund[] memory) 
+        returns (bytes memory, Fund[] memory) 
     {
         // Parse input arguments from the bytes32 array
-        bytes32 _positionKey = _args[0];
+        bytes32 _key = bytes32(_args); 
 
         // Verify position exists (assuming the modifier was a function)
-        require(liquidities[_positionKey].account == _account, "Position does not exist");
+        require(liquidities[_key].account == _account, "Position does not exist");
         
-        UniV3Position memory userLiquidity = positionOf(_positionKey);
+        UniV3Position memory userLiquidity = positionOf(_key);
 
-        (uint128 fee0, uint128 fee1) = unCollectedFee(_positionKey);
+        (uint128 fee0, uint128 fee1) = unCollectedFee(_key);
         (uint256 owed0, uint256 owed1) = userLiquidity.pool.burn(userLiquidity.tickLower, userLiquidity.tickUpper, userLiquidity.liquidity);
         (uint256 amount0, uint256 amount1) = userLiquidity.pool.collect(address(this), userLiquidity.tickLower, userLiquidity.tickUpper, uint128(owed0 + fee0), uint128(owed1 + fee1));
 
-        removePositionKey(_account, _positionKey);
+        removeKey(_account, _key);
 
         IProtocolPosition.Fund[] memory returnedFund = new IProtocolPosition.Fund[](2); 
 
@@ -216,21 +229,21 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         returnedFund[0].amount = amount0;
         returnedFund[1].amount = amount1;
 
-        bytes32[] memory result = new bytes32[](0);
+        bytes memory result = abi.encode(new bytes32[](0));
         return (result, returnedFund);
     }
     
-    function removePositionKey(address _account, bytes32 _positionKey) 
+    function removeKey(address _account, bytes32 _key) 
         internal 
     {
         for (uint256 i = 0; i < positionIds[_account].length; i++) {
-            if (positionIds[_account][i] == _positionKey) {
+            if (positionIds[_account][i] == _key) {
                 // Replace the element with the last element in the array and remove the last element
                 positionIds[_account][i] = positionIds[_account][positionIds[_account].length - 1];
                 positionIds[_account].pop();
 
                 // Remove the ComposedLiquidity from the mapping
-                delete liquidities[_positionKey];
+                delete liquidities[_key];
 
                 // The element has been removed, no need to continue the loop
                 return;
@@ -238,28 +251,24 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         }
     }
 
-    function collectAllFees(
-        address _recipient, 
-        bytes32 _positionKey
-        ) 
+    function collectAllFees(address _recipient, bytes32 _key) 
         external 
         returns (uint256 amount0, uint256 amount1) 
     {
-        (uint128 fee0, uint128 fee1) = unCollectedFee(_positionKey);
+        (uint128 fee0, uint128 fee1) = unCollectedFee(_key);
         if (fee0 > 0 || fee1 > 0) {
-            UniV3Position memory userLiquidity = positionOf(_positionKey);
+            UniV3Position memory userLiquidity = positionOf(_key);
             (amount0, amount1) = userLiquidity.pool.collect(address(this), userLiquidity.tickLower, userLiquidity.tickUpper, fee0, fee1);
         }
 
         returnFund(_recipient, constructFund(amount0, amount1));
     }
 
-    function unCollectedFee(bytes32 _positionKey) 
-        public 
-        view 
+    function unCollectedFee(bytes32 _key) 
+        public view 
         returns (uint128 fee0, uint128 fee1) 
     {
-        UniV3Position memory userLiquidity = positionOf(_positionKey);
+        UniV3Position memory userLiquidity = positionOf(_key);
 
         uint128 liquidity;
         bytes32 uniKey = keccak256(abi.encodePacked(address(this), userLiquidity.tickLower, userLiquidity.tickUpper));
@@ -284,17 +293,17 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPosition, IUniswapV3MintCallb
         fund[1].amount = amount1;
     }
 
-    function feesOf(bytes32 _positionKey) external view returns (Fund[] memory) 
+    function feesOf(bytes32 _key) external view returns (Fund[] memory) 
     {
-        (uint128 fee0, uint128 fee1) = unCollectedFee(_positionKey);
+        (uint128 fee0, uint128 fee1) = unCollectedFee(_key);
         return constructFund(fee0, fee1);
     }
 
-    function claimFees(address _account, bytes32 _positionKey) external 
+    function claimFees(address _account, bytes32 _key) external 
     {
-        (uint128 fee0, uint128 fee1) = unCollectedFee(_positionKey);
+        (uint128 fee0, uint128 fee1) = unCollectedFee(_key);
         if (fee0 > 0 || fee1 > 0) {
-            UniV3Position memory userLiquidity = positionOf(_positionKey);
+            UniV3Position memory userLiquidity = positionOf(_key);
             (uint256 amount0, uint256 amount1) = userLiquidity.pool.collect(address(this), userLiquidity.tickLower, userLiquidity.tickUpper, fee0, fee1);
 
             returnFund(_account, constructFund(amount0, amount1));

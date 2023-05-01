@@ -143,15 +143,15 @@ contract DerivioA is ReentrancyGuard {
             protocolManager: address(uniV3Manager),
             senderValue: 0,
             fund: new IProtocolPosition.Fund[](2),
-            inputArgs: new bytes32[](6)
+            inputArgs: abi.encode(
+                _args.tickLower,
+                _args.tickUpper,
+                _args.feeTier,
+                _args.amount0Desired,
+                _args.amount1Desired,
+                liquidityDesired
+            )
         });
-
-        uniV3Arg.inputArgs[0] = bytes32(uint256(uint24(_args.tickLower)));
-        uniV3Arg.inputArgs[1] = bytes32(uint256(uint24(_args.tickUpper)));
-        uniV3Arg.inputArgs[2] = bytes32(uint256(uint24(_args.feeTier)));
-        uniV3Arg.inputArgs[3] = bytes32(_args.amount0Desired);
-        uniV3Arg.inputArgs[4] = bytes32(_args.amount1Desired);
-        uniV3Arg.inputArgs[5] = bytes32(uint256(liquidityDesired));
 
         uniV3Arg.fund[0].token = address(token0);
         uniV3Arg.fund[1].token = address(token1);
@@ -162,19 +162,21 @@ contract DerivioA is ReentrancyGuard {
         return uniV3Arg;
     }
 
-    function createGmxProtocolOpenArg(uint256 _collateralAmount, uint256 _shortDelta) internal view returns (DerivioPositionManager.ProtocolOpenArg memory gmxArg) {
-        bytes32[] memory gmxArgs = new bytes32[](5);
-        gmxArgs[0] = bytes32(uint256(uint160(address(collateralToken))));
-        gmxArgs[1] = bytes32(uint256(uint160(address(indexToken))));
-        gmxArgs[2] = bytes32(_collateralAmount);
-        gmxArgs[3] = bytes32(_shortDelta);
-        gmxArgs[4] = bytes32(0);
-
+    function createGmxProtocolOpenArg(uint256 _collateralAmount, uint256 _shortDelta) 
+        internal view 
+        returns (DerivioPositionManager.ProtocolOpenArg memory gmxArg) 
+    {
         gmxArg = DerivioPositionManager.ProtocolOpenArg({
             protocolManager: address(gmxManager),
             senderValue: msg.value,
             fund: new IProtocolPosition.Fund[](1),
-            inputArgs: gmxArgs
+            inputArgs: abi.encode(
+                address(collateralToken),
+                address(indexToken),
+                _collateralAmount,
+                _shortDelta,
+                uint256(0)
+            )
         });
 
         gmxArg.fund[0].token = address(collateralToken);
@@ -192,20 +194,16 @@ contract DerivioA is ReentrancyGuard {
             if (position[i].protocolManager == address(uniV3Manager)) {
                 protocolCloseArgs[i] = DerivioPositionManager.ProtocolCloseArg({
                     protocolManager: address(uniV3Manager),
-                    inputArgs: new bytes32[](1),
+                    inputArgs: abi.encode(position[i].key),
                     senderValue: 0
                 });
-                protocolCloseArgs[i].inputArgs[0] = position[i].positionInfo[0];
 
             } else if (position[i].protocolManager == address(gmxManager)) {
                 protocolCloseArgs[i] = DerivioPositionManager.ProtocolCloseArg({
                     protocolManager: address(gmxManager),
-                    inputArgs: new bytes32[](3),
+                    inputArgs: abi.encode(position[i].key, uint256(0), type(uint256).max),
                     senderValue: msg.value
                 });
-                protocolCloseArgs[i].inputArgs[0] = position[i].positionInfo[0];
-                protocolCloseArgs[i].inputArgs[1] = bytes32(uint256(0));
-                protocolCloseArgs[i].inputArgs[2] = bytes32(uint256(type(uint256).max));
             }
         }
 
@@ -219,7 +217,7 @@ contract DerivioA is ReentrancyGuard {
                 uint256 collect1 = closedPositions[i].fund[1].amount;
 
                 if (_swapToCollateral) {
-                    uint24 feeTier = uint24(uint256(position[i].positionInfo[5]));
+                    uint24 feeTier = 500;
                     (collect0, collect1) = swapToCollateral(collect0, collect1, feeTier);
                 }
                 
