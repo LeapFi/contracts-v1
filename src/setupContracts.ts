@@ -27,8 +27,8 @@ export async function setupContracts(feeTier: number) {
   const UniHelper = await ethers.getContractFactory("UniHelper");
   const uniHelper = await UniHelper.deploy(addresses.UniswapV3Factory);
 
-  const DerivioAStorage = await ethers.getContractFactory("DerivioAStorage");
-  const derivioAStorage = await DerivioAStorage.deploy();
+  const DerivioAFactory = await ethers.getContractFactory("DerivioAFactory");
+  const derivioAFactory = await DerivioAFactory.deploy();
   
   const DerivioPositionManager = await ethers.getContractFactory("DerivioPositionManager");
   const derivioPositionManager = await DerivioPositionManager.deploy();
@@ -62,7 +62,7 @@ export async function setupContracts(feeTier: number) {
   );
 
   const PositionRouter = await ethers.getContractFactory("PositionRouter");
-  const positionRouter = await PositionRouter.deploy(derivioAStorage.address, derivioPositionManager.address);
+  const positionRouter = await PositionRouter.deploy(derivioAFactory.address, derivioPositionManager.address);
   await positionRouter.addDerivioAPair(
     uniHelper.address,
     addresses.UniswapV3Factory,
@@ -73,6 +73,13 @@ export async function setupContracts(feeTier: number) {
     weth.address,
     usdc.address,
     false
+  );
+
+  await positionRouter.addDerivioFuturePair(
+    derivioPositionManager.address,
+    gmxManager.address,
+    usdc.address,
+    weth.address
   );
 
   return {
@@ -89,5 +96,7 @@ export async function setupContracts(feeTier: number) {
     derivioA,
     derivioPositionManager,
     positionRouter,
+    gmxManager,
+    uniV3Manager,
   };
 }

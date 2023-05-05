@@ -85,7 +85,7 @@ export async function setPricesWithBitsAndExecute(
 };
 
 
-async function getBlockTime(): Promise<number> {
+export async function getBlockTime(): Promise<number> {
   const block = await ethers.provider.getBlock('latest');
   return block.timestamp;
 }

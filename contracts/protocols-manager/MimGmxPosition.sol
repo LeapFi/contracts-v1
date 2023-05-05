@@ -16,8 +16,8 @@ contract MimGmxPosition is ReentrancyGuard {
     address account;
     address collateralToken;
     address indexToken;
-    address[] path = new address[](1);
-    bool isLong = false;
+    address[] path;
+    bool isLong;
     uint256 private constant gmxDecimals = 30;
 
     IGmxPositionRouter private immutable gmxPositionRouter;
@@ -29,6 +29,7 @@ contract MimGmxPosition is ReentrancyGuard {
         IGmxPositionRouter _gmxPositionRouter,
         IGmxRouter _gmxRouter,
         IGmxVault _gmxVault,
+        bool _isLong,
         address _collateralToken,
         address _indexToken
         ) 
@@ -37,24 +38,39 @@ contract MimGmxPosition is ReentrancyGuard {
         gmxPositionRouter = _gmxPositionRouter;
         gmxRouter = _gmxRouter;
         gmxVault = _gmxVault;
+
+        isLong = _isLong;
         collateralToken = _collateralToken;
         indexToken = _indexToken;
 
         _gmxRouter.approvePlugin(address(_gmxPositionRouter));
-        path[0] = collateralToken;
+
+        if (isLong) {
+            path = new address[](2);
+            path[0] = collateralToken;
+            path[1] = indexToken;
+            console.log('collateralToken:', collateralToken);
+            console.log('indexToken:', indexToken);
+        }
+        else {
+            path = new address[](1);
+            path[0] = collateralToken;
+        }
     }
 
-    function openGmxShort(
-        uint256 _collateralAmount,
-        uint256 _sizeDelta,
-        uint256 _acceptPrice
-    ) 
-        payable
-        external
+    function openGmxPosition(uint256 _collateralAmount, uint256 _sizeDelta, uint256 _acceptPrice) 
+        external payable
     {
         IERC20(collateralToken).approve(address(gmxRouter), _collateralAmount);
         bytes32 referralCode = 0;
 
+        console.log('indexToken:', indexToken);
+        console.log('_collateralAmount:', _collateralAmount);
+        console.log('_sizeDelta:', _sizeDelta);
+        console.log('isLong:', isLong);
+        console.log('_acceptPrice:', _acceptPrice);
+        console.log("collateral balance before:", IERC20(collateralToken).balanceOf(address(this)));
+        
         gmxPositionRouter.createIncreasePosition{ value: msg.value }(
             path, 
             indexToken, 
@@ -65,17 +81,25 @@ contract MimGmxPosition is ReentrancyGuard {
             _acceptPrice, 
             2e16,
             referralCode,
-            address(0)
+            address(this)
         );
 
-        getGmxPosition();
+        console.log("collateral balance after:", IERC20(collateralToken).balanceOf(address(this)));
     }
 
-    function closeGmxShort(address _recipient, uint256 _minOut, uint256 _acceptablePrice) 
-        payable
-        external 
+    function closeGmxPosition(address _recipient, uint256 _minOut, uint256 _acceptablePrice) 
+        external payable 
     {
-        (uint256 sizeDelta, uint256 collateralDelta, , , , , , ) = gmxVault.getPosition(address(this), collateralToken, indexToken, false);
+        (uint256 sizeDelta, uint256 collateralDelta, , , , , , ) = gmxVault.getPosition(address(this), collateralToken, indexToken, isLong);
+        
+        console.log('_recipient:', _recipient);
+        console.log('_minOut:', _minOut);
+        console.log('_acceptablePrice:', _acceptablePrice);
+        console.log('sizeDelta:', sizeDelta);
+        console.log('path:', path[0]);
+        console.log('indexToken:', indexToken);
+        console.log('isLong:', isLong);
+        console.log('msg.value:', msg.value);
 
         uint256 executionFee = gmxPositionRouter.minExecutionFee();
         // bool withdrawETH = false; // Set to true if you want to receive ETH instead of the collateral token
@@ -93,30 +117,38 @@ contract MimGmxPosition is ReentrancyGuard {
             false,
             address(this)
         );
-
-        getGmxPosition();
     }
 
-    function gmxPositionCallback(bytes32 positionKey, bool isExecuted, bool isIncrease) external 
+    function gmxPositionCallback(bytes32 _positionKey, bool _isExecuted, bool _isIncrease) external 
     {
-        if (!isIncrease) {
+        if (!_isIncrease) {
             
             uint256 collateralAmount = IERC20(collateralToken).balanceOf(address(this));
             IERC20(collateralToken).safeTransfer(account, collateralAmount);
             console.log("collateralAmount: %s", collateralAmount);
         }
-        console.logBytes32(positionKey);
-        console.log("isExecuted: %s", isExecuted);
-        console.log("isIncrease: %s", isIncrease);
+        console.logBytes32(_positionKey);
+        console.log("isExecuted: %s", _isExecuted);
+        console.log("isIncrease: %s", _isIncrease);
     }
 
     function getGmxPosition() 
         public view
-        returns (uint256 sizeDelta, uint256 collateral)
+        returns (
+            bool isLong_, uint256 sizeDelta_, uint256 collateral_, uint256 averagePrice_, uint256 entryFundingRate_, 
+            uint256 reserveAmount_, uint256 realisedPnl_, bool realisedPnLPositive_, uint256 lastIncreasedTime_
+        )
     {
-        (sizeDelta, collateral, , , , , , ) = gmxVault.getPosition(address(this), collateralToken, indexToken, false);
-        console.log("sizeDelta: %s", sizeDelta);
-        console.log("collateral: %s", collateral);
+        isLong_ = isLong;
+        (sizeDelta_, collateral_, averagePrice_, entryFundingRate_, 
+        reserveAmount_, realisedPnl_, realisedPnLPositive_, lastIncreasedTime_) = gmxVault.getPosition(address(this), collateralToken, indexToken, isLong);
+
+        console.log("isLong: %s", isLong);
+        console.log("sizeDelta: %s", sizeDelta_);
+        console.log("collateral: %s", collateral_);
         console.log("collateral amount: ", IERC20(collateralToken).balanceOf(address(this)));
+        console.log("index amount: ", IERC20(indexToken).balanceOf(address(this)));
+
+        require(IERC20(collateralToken).balanceOf(address(this)) == 0, "collateral amount should be 0");
     }
 }

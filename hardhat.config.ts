@@ -19,7 +19,7 @@ const config: HardhatUserConfig = {
       {
         version: "0.8.13",
         settings: {
-          optimizer: { enabled: true, runs: 200 },
+          optimizer: { enabled: true, runs: 20 },
         },
       },
     ],
@@ -39,7 +39,7 @@ const config: HardhatUserConfig = {
       blockGasLimit: 0x1fffffffffff,
       gasPrice: 0,  
       initialBaseFeePerGas: 0,
-      // allowUnlimitedContractSize: true,
+      allowUnlimitedContractSize: true,
     },
 
     arbitrumForked: {
@@ -56,7 +56,7 @@ const config: HardhatUserConfig = {
   gasReporter: {
     enabled: true,
     currency: "USD",
-    // gasPrice: 1,
+    gasPrice: 1,
   },
 
   typechain: {

@@ -13,20 +13,21 @@ import "../protocols-manager/GmxManager.sol";
 import "../protocols-manager/UniV3Manager.sol";
 import "./DerivioPositionManager.sol";
 import "./DerivioA.sol";
-import "./DerivioAStorage.sol";
+import "./DerivioAFactory.sol";
 import "hardhat/console.sol";
 
 contract PositionRouter is ReentrancyGuard {
 
     using SafeERC20 for IERC20;
     
-    DerivioAStorage derivioAStorage;
+    DerivioAFactory derivioAFactory;
     DerivioPositionManager derivioPositionManager;
-    uint32 derivioAId = 0;
+    uint32 immutable derivioAId = 0;
+    uint32 immutable derivioFutureId = 1;
     
-    constructor (DerivioAStorage _derivioAStorage, DerivioPositionManager _derivioPositionManager) 
+    constructor (DerivioAFactory _derivioAFactory, DerivioPositionManager _derivioPositionManager) 
     {
-        derivioAStorage = _derivioAStorage;
+        derivioAFactory = _derivioAFactory;
         derivioPositionManager = _derivioPositionManager;
     }
 
@@ -43,52 +44,118 @@ contract PositionRouter is ReentrancyGuard {
     ) 
         public
     {
-        (address token0, address token1) = _uniHelper.getTokenOrder(_token0, _token1);
+        (_token0, _token1) = _uniHelper.getTokenOrder(_token0, _token1);
 
-        derivioAStorage.addPair(getPairId(derivioAId, token0, token1), new DerivioA(
+        derivioAFactory.addPair(derivioAFactory.getPairId(derivioAId, _token0, _token1), new DerivioA(
             _uniHelper,
             _uniFactory,
             _swapRouter,
             _derivioPositionManager,
             _uniV3Manager,
             _gmxManager,
-            token0, 
-            token1,
+            _token0, 
+            _token1,
             _isZeroCollateral
         ));
     }
 
-    function openDerivioA(DerivioA.PositionArgs memory _args, address _token0, address _token1)
-        payable
-        external
-        nonReentrant
+    function addDerivioFuturePair(
+        DerivioPositionManager _derivioPositionManager,
+        GmxManager _gmxManager,
+        address _collateralToken,
+        address _indexToken
+    ) 
+        public
     {
-        bytes32 pairId = getPairId(derivioAId, _token0, _token1);
-        address contractAddr = derivioAStorage.getAddress(pairId);
+        derivioAFactory.addFuturePair(derivioAFactory.getFuturePairId(derivioFutureId, _collateralToken, _indexToken), new DerivioFuture(
+            _derivioPositionManager,
+            _gmxManager,
+            _collateralToken, 
+            _indexToken
+        ));
+    }
+    
+    function openDerivioAPositions(DerivioA.PositionArgs[] memory _argsList, address _token0, address _token1)
+        payable external nonReentrant
+        returns (DerivioPositionManager.ProtocolOpenResult[][] memory)
+    {
+        DerivioA derivioA = getDerivioAContract(derivioAId, _token0, _token1);
+        DerivioPositionManager.ProtocolOpenResult[][] memory results = new DerivioPositionManager.ProtocolOpenResult[][](_argsList.length);
 
-        IERC20(_token0).safeTransferFrom(msg.sender, address(this), _args.amount0Desired);
-        IERC20(_token1).safeTransferFrom(msg.sender, address(this), _args.amount1Desired);
-
-        IERC20(_token0).approve(contractAddr, _args.amount0Desired);
-        IERC20(_token1).approve(contractAddr, _args.amount1Desired);
-
-        if (_args.shortLeverage == 0) {
-            DerivioA(contractAddr).openAS(_args);
+        for (uint256 i = 0; i < _argsList.length; i++) {
+            results[i] = openDerivioA(derivioA, IERC20(_token0), IERC20(_token1), _argsList[i]);
         }
-        else {
-            DerivioA(contractAddr).openAL{ value: msg.value }(_args);
-        }
+
+        return results;
     }
 
-    function closeDerivioA(bytes32[] memory _positionKeys, bool _swapToCollateral, address _token0, address _token1) 
-        external payable nonReentrant 
+    function openDerivioA(DerivioA _derivioA, IERC20 _token0, IERC20 _token1, DerivioA.PositionArgs memory _args)
+        internal
+        returns (DerivioPositionManager.ProtocolOpenResult[] memory)
     {
-        bytes32 pairId = getPairId(derivioAId, _token0, _token1);
-        address contractAddr = derivioAStorage.getAddress(pairId);
+        _token0.safeTransferFrom(msg.sender, address(this), _args.amount0Desired);
+        _token1.safeTransferFrom(msg.sender, address(this), _args.amount1Desired);
 
-        for (uint i = 0; i < _positionKeys.length; i++) {
-            DerivioA(contractAddr).closePosition{ value: msg.value }(msg.sender, _positionKeys[i], _swapToCollateral);
+        _token0.approve(address(_derivioA), _args.amount0Desired);
+        _token1.approve(address(_derivioA), _args.amount1Desired);
+
+        if (_args.shortLeverage == 0) {
+            return _derivioA.openAS(_args);
+        } else {
+            return _derivioA.openAL{ value: _args.value }(_args);
         }
+    }
+    
+    function openDerivioFuturePositions(DerivioFuture.OpenArgs[] memory _argsList, address _collateralToken, address _indexToken)
+        payable external nonReentrant
+        returns (DerivioPositionManager.ProtocolOpenResult[][] memory)
+    {
+        DerivioFuture derivioFuture = getDerivioFutureContract(derivioFutureId, _collateralToken, _indexToken);
+        DerivioPositionManager.ProtocolOpenResult[][] memory results = new DerivioPositionManager.ProtocolOpenResult[][](_argsList.length);
+
+        for (uint256 i = 0; i < _argsList.length; i++) {
+            results[i] = openDerivioFuture(derivioFuture, IERC20(_collateralToken), _argsList[i]);
+        }
+
+        return results;
+    }
+
+    function openDerivioFuture(DerivioFuture _derivioFuture, IERC20 _collateralToken, DerivioFuture.OpenArgs memory _args)
+        internal
+        returns (DerivioPositionManager.ProtocolOpenResult[] memory)
+    {
+        _collateralToken.safeTransferFrom(msg.sender, address(this), _args.collateralAmount);
+        _collateralToken.approve(address(_derivioFuture), _args.collateralAmount);
+
+        return _derivioFuture.openFuture{ value: _args.value }(_args);
+    }
+
+    function closeDerivioA(DerivioA.DerivioACloseArgs[] memory _argsList, address _token0, address _token1) 
+        external payable nonReentrant 
+        returns (DerivioPositionManager.ProtocolCloseResult[][] memory)
+    {
+        DerivioA derivioA = getDerivioAContract(derivioAId, _token0, _token1);
+        DerivioPositionManager.ProtocolCloseResult[][] memory results = new DerivioPositionManager.ProtocolCloseResult[][](_argsList.length);
+
+        for (uint i = 0; i < _argsList.length; i++) {
+            results[i] = derivioA.closePosition{ value: _argsList[i].value }(msg.sender, _argsList[i]);
+        }
+
+        return results;
+    }
+
+    function closeDerivioFuture(DerivioFuture.CloseArgs[] memory _argsList, address _collateralToken, address _indexToken) 
+        external payable nonReentrant 
+        returns (DerivioPositionManager.ProtocolCloseResult[][] memory)
+    {
+        DerivioFuture derivioFuture = getDerivioFutureContract(derivioFutureId, _collateralToken, _indexToken);
+        DerivioPositionManager.ProtocolCloseResult[][] memory results = new DerivioPositionManager.ProtocolCloseResult[][](_argsList.length);
+
+        for (uint i = 0; i < _argsList.length; i++) {
+            results[i] = derivioFuture.closeFuture{ value: _argsList[i].value }(msg.sender, _argsList[i]);
+        }
+
+        return results;
     }
 
     function claimFees(bytes32[] memory _positionKeys)
@@ -99,16 +166,16 @@ contract PositionRouter is ReentrancyGuard {
         }
     }
 
-    function getPairId(uint32 _derivioId, address _token0, address _token1) 
-        public pure returns (bytes32 pairId) 
+    function getDerivioAContract(uint32 _derivioId, address _token0, address _token1) 
+        public view returns (DerivioA) 
     {
-        return keccak256(abi.encodePacked(_derivioId, _token0, _token1));
+        return DerivioA(derivioAFactory.getAddress(derivioAFactory.getPairId(_derivioId, _token0, _token1)));
     }
 
-    function getDerivioAddress(uint32 _derivioId, address _token0, address _token1) 
-        public view returns (address) 
+    function getDerivioFutureContract(uint32 _derivioId, address _collateralToken, address _indexToken) 
+        public view returns (DerivioFuture) 
     {
-        return derivioAStorage.getAddress(getPairId(_derivioId, _token0, _token1));
+        return DerivioFuture(derivioAFactory.getFutureAddress(derivioAFactory.getFuturePairId(_derivioId, _collateralToken, _indexToken)));
     }
 
     // function positionsOf(address _account) 
@@ -116,13 +183,4 @@ contract PositionRouter is ReentrancyGuard {
     // {
     //     return derivioPositionManager.getAllPositions(_account);
     // }
-
-    function getGmxPosition(address _token0, address _token1) 
-        public view
-        returns (uint256, uint256)
-    {
-        bytes32 pairId = getPairId(derivioAId, _token0, _token1);
-        address contractAddr = derivioAStorage.getAddress(pairId);
-        return DerivioA(contractAddr).getGmxPosition();
-    }
 }

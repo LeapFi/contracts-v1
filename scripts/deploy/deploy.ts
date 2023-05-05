@@ -10,7 +10,7 @@ import {
   IGmxPositionRouter,
   IGmxFastPriceFeed,
   DerivioA,
-  DerivioAStorage,
+  DerivioAFactory,
   PositionRouter,
 } from "../../typechain";
 
@@ -27,7 +27,7 @@ async function main(): Promise<void> {
   let weth: IERC20
   let usdc: IERC20
   let derivioA: DerivioA
-  let derivioAStorage: DerivioAStorage
+  let derivioAFactory: DerivioAFactory
   let positionRouter: PositionRouter
 
   let addresses = getAddresses(hre.network.name);
@@ -47,8 +47,8 @@ async function main(): Promise<void> {
   const UniHelper: ContractFactory = await ethers.getContractFactory("UniHelper");
   const uniHelper: Contract = await UniHelper.deploy(addresses.UniswapV3Factory);
 
-  const DerivioAStorage = await ethers.getContractFactory("DerivioAStorage")
-  derivioAStorage = await DerivioAStorage.deploy()
+  const DerivioAFactory = await ethers.getContractFactory("DerivioAFactory")
+  derivioAFactory = await DerivioAFactory.deploy()
 
   const DerivioA = await ethers.getContractFactory("DerivioA")
   derivioA = await DerivioA.deploy(
@@ -65,7 +65,7 @@ async function main(): Promise<void> {
   )
 
   const PositionRouter = await ethers.getContractFactory("PositionRouter")
-  positionRouter = await PositionRouter.deploy(derivioAStorage.address)
+  positionRouter = await PositionRouter.deploy(derivioAFactory.address)
   await positionRouter.addDerivioAPair(
     uniHelper.address,
     addresses.UniswapV3Factory,

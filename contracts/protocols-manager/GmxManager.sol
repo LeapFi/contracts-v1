@@ -11,10 +11,10 @@ import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/Saf
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "./MimGmxPosition.sol";
 import "../core/DerivioPositionManager.sol";
-import "../core/interface/IProtocolPosition.sol";
+import "../core/interface/IProtocolPositionManager.sol";
 import "hardhat/console.sol";
 
-contract GmxManager is ReentrancyGuard, IProtocolPosition {
+contract GmxManager is ReentrancyGuard, IProtocolPositionManager {
 
     using SafeERC20 for IERC20;
 
@@ -22,8 +22,6 @@ contract GmxManager is ReentrancyGuard, IProtocolPosition {
     IGmxRouter private immutable gmxRouter;
     IGmxVault private immutable gmxVault;
     uint256 private constant gmxDecimals = 30;
-
-    MimGmxPosition mimGmxPositionCont;
 
     constructor (
         IGmxPositionRouter _gmxPositionRouter,
@@ -43,10 +41,11 @@ contract GmxManager is ReentrancyGuard, IProtocolPosition {
         (
             address _collateralToken,
             address _indexToken,
+            bool _isLong,
             uint256 _collateralAmount,
             uint256 _shortDelta,
             uint256 _acceptPrice
-        ) = abi.decode(_args, (address, address, uint256, uint256, uint256));
+        ) = abi.decode(_args, (address, address, bool, uint256, uint256, uint256));
 
         require(_shortDelta >= _collateralAmount, "delta size too small");
 
@@ -55,21 +54,19 @@ contract GmxManager is ReentrancyGuard, IProtocolPosition {
             gmxPositionRouter,
             gmxRouter,
             gmxVault,
+            _isLong,
             _collateralToken,
             _indexToken
         );
 
-        mimGmxPositionCont = mimGmxPosition;
-
         _shortDelta *= 10 ** (gmxDecimals - uint256(IERC20Metadata(_collateralToken).decimals()));
 
         IERC20(_collateralToken).safeTransfer(address(mimGmxPosition), _collateralAmount);
-        mimGmxPosition.openGmxShort{ value: msg.value }(
+        mimGmxPosition.openGmxPosition{ value: msg.value }(
             _collateralAmount,
             _shortDelta,
             _acceptPrice
         );
-        mimGmxPosition.getGmxPosition();
 
         key_ = bytes32(uint256(uint160(address(mimGmxPosition))));
     }
@@ -82,27 +79,38 @@ contract GmxManager is ReentrancyGuard, IProtocolPosition {
         (
             address mimGmxPositionAddress,
             uint256 _minOut,
-            uint256 _acceptablePrice
+            uint256 _acceptPrice
         ) = abi.decode(_args, (address, uint256, uint256));
 
         // Ensure that the position actually exists
         require(mimGmxPositionAddress != address(0), "GMX position not found");
 
         // Call closeGmxShort on the MimGmxPosition contract
-        MimGmxPosition(mimGmxPositionAddress).closeGmxShort{value: msg.value}(_account, _minOut, _acceptablePrice);
+        MimGmxPosition(mimGmxPositionAddress).closeGmxPosition{value: msg.value}(_account, _minOut, _acceptPrice);
 
         // Currently, there are no return values for closePosition
         bytes memory result = abi.encode(new bytes32[](0));
-        IProtocolPosition.Fund[] memory returnedFund = new IProtocolPosition.Fund[](0); 
+        IProtocolPositionManager.Fund[] memory returnedFund = new IProtocolPositionManager.Fund[](0); 
 
         return (result, returnedFund);
     }
 
-    function getGmxPosition() 
-        public view
-        returns (uint256 sizeDelta, uint256 collateral)
-    {
-        return mimGmxPositionCont.getGmxPosition();
+    function infoOf(bytes32 _key) external view override returns (bytes memory info_) {
+
+        address minVaultAddr = address(uint160(uint256(_key)));
+        (
+            bool isLong,
+            uint256 sizeDelta, 
+            uint256 collateral, 
+            uint256 averagePrice, 
+            uint256 entryFundingRate, 
+            uint256 reserveAmount, 
+            uint256 realisedPnl, 
+            bool realisedPnLPositive, 
+            uint256 lastIncreasedTime
+        ) = MimGmxPosition(minVaultAddr).getGmxPosition();
+
+        return abi.encode(isLong, sizeDelta, collateral, averagePrice, entryFundingRate, reserveAmount, realisedPnl, realisedPnLPositive, lastIncreasedTime);
     }
 
     function receiveFund(address _account, Fund[] memory _fund) external 
