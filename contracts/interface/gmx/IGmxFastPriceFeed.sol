@@ -49,4 +49,73 @@ interface IGmxFastPriceFeed {
         uint256 blockGap,
         uint256 timeGap
     );
+
+    event SetIsLeverageEnabled(bool isLeverageEnabled);
+    event SetDelayValues(uint256 minBlockDelayKeeper, uint256 minTimeDelayPublic, uint256 maxTimeDelay);
+    event SetRequestKeysStartValues(uint256 increasePositionRequestKeysStart, uint256 decreasePositionRequestKeysStart);
+    event SetCallbackGasLimit(uint256 callbackGasLimit);
+    event Callback(address callbackTarget, bool success);
+
+    event UpdateFundingRate(address token, uint256 fundingRate);
+    event UpdatePnl(bytes32 key, bool hasProfit, uint256 delta);
+
+    event CollectSwapFees(address token, uint256 feeUsd, uint256 feeTokens);
+    event CollectMarginFees(address token, uint256 feeUsd, uint256 feeTokens);
+
+    event DirectPoolDeposit(address token, uint256 amount);
+    event IncreasePoolAmount(address token, uint256 amount);
+    event DecreasePoolAmount(address token, uint256 amount);
+    event IncreaseUsdgAmount(address token, uint256 amount);
+    event DecreaseUsdgAmount(address token, uint256 amount);
+    event IncreaseReservedAmount(address token, uint256 amount);
+    event DecreaseReservedAmount(address token, uint256 amount);
+    event IncreaseGuaranteedUsd(address token, uint256 amount);
+    event DecreaseGuaranteedUsd(address token, uint256 amount);
+
+    event Swap(address account, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut);
+
+    event IncreasePosition(
+        bytes32 key,
+        address account,
+        address collateralToken,
+        address indexToken,
+        uint256 collateralDelta,
+        uint256 sizeDelta,
+        bool isLong,
+        uint256 price,
+        uint256 fee
+    );
+    event DecreasePosition(
+        bytes32 key,
+        address account,
+        address collateralToken,
+        address indexToken,
+        uint256 collateralDelta,
+        uint256 sizeDelta,
+        bool isLong,
+        uint256 price,
+        uint256 fee
+    );
+    event LiquidatePosition(
+        bytes32 key,
+        address account,
+        address collateralToken,
+        address indexToken,
+        bool isLong,
+        uint256 size,
+        uint256 collateral,
+        uint256 reserveAmount,
+        int256 realisedPnl,
+        uint256 markPrice
+    );
+    event UpdatePosition(
+        bytes32 key,
+        uint256 size,
+        uint256 collateral,
+        uint256 averagePrice,
+        uint256 entryFundingRate,
+        uint256 reserveAmount,
+        int256 realisedPnl,
+        uint256 markPrice
+    );
 }
