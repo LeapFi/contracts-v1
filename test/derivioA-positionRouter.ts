@@ -20,7 +20,7 @@ import { setupContracts } from "../src/setupContracts";
 import { fundErc20 } from "../src/fundErc20";
 import { setPricesWithBitsAndExecute, getBlockTime } from "../src/executeGmxPosition";
 import { getPriceBits } from "../src/utilities";
-import { BytesLike } from "ethers";
+import { BytesLike, ContractReceipt } from "ethers";
 
 type Position = ReturnType<DerivioPositionManager["getAllPositions"]> extends Promise<Array<infer T>> ? T : never;
 // type AggregateInfo = Position["aggregateInfos"][number];
@@ -135,8 +135,14 @@ describe("DerivioA test", function () {
 
     if (shortLeverage != 0) {
       const positionKeeper = await ethers.getImpersonatedSigner(addresses.GMXFastPriceFeed);
-      await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
-      await gmxPositionRouter.connect(positionKeeper).executeDecreasePositions(999999999, addresses.GMXFastPriceFeed);
+      const tx = await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
+      // await gmxPositionRouter.connect(positionKeeper).executeDecreasePositions(999999999, addresses.GMXFastPriceFeed);
+
+      const receipt = await tx.wait();
+      // Print out all events in the transaction
+      for (const event of receipt.events) {
+        console.log(event);
+      }
     }
   }
   
@@ -243,7 +249,7 @@ describe("DerivioA test", function () {
 
     it("#2 open DerivioAL by Position Router", async function () {
       
-      await openDerivioA(-25, 10, 1000000, 0.02);
+      await openDerivioA(-250, 100, 1000000, 0.02);
       
       console.log('positionsInfos:', await getPositionsInfos(derivioPositionManager, owner.address));
     });

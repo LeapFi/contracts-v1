@@ -72,6 +72,12 @@ contract MimGmxPosition is ReentrancyGuard {
         console.log('_acceptPrice', _acceptPrice);
         console.logBytes32(referralCode);
 
+        // Log the input values
+        console.log("Input _collateralAmount:", _collateralAmount);
+        console.log("Input _sizeDelta:", _sizeDelta);
+        console.log("Input _acceptPrice:", _acceptPrice);
+
+
         // console.log('indexToken:', indexToken);
         // console.log('_collateralAmount:', _collateralAmount);
         // console.log('_sizeDelta:', _sizeDelta);
@@ -93,6 +99,8 @@ contract MimGmxPosition is ReentrancyGuard {
         );
 
         console.log("collateral balance after:", IERC20(collateralToken).balanceOf(address(this)));
+        // Add this line
+        // getGmxPosition();
     }
 
     function closeGmxPosition(address _recipient, uint256 _minOut, uint256 _acceptablePrice) 
