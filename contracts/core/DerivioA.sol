@@ -33,6 +33,8 @@ contract DerivioA is ReentrancyGuard {
     IUniswapV3Factory private immutable uniFactory;
     ISwapRouter private immutable swapRouter;
 
+    uint256 private constant shortDenominator = 1e6;
+
     struct PositionArgs {
         address recipient;
         uint256 value;
@@ -91,7 +93,7 @@ contract DerivioA is ReentrancyGuard {
         token0.safeTransferFrom(msg.sender, address(this), _args.amount0Desired);
         token1.safeTransferFrom(msg.sender, address(this), _args.amount1Desired);
         
-        (uint256 amount0Uni, uint256 amount1Uni, ) = calcOptimalAmount(_args, sqrtPriceX96, tickCurrent, false);
+        (uint256 amount0Uni, uint256 amount1Uni, , ) = calcOptimalAmount(_args, sqrtPriceX96, tickCurrent, _args.shortLeverage);
         (_args.amount0Desired, _args.amount1Desired) = swapToOptimalAmount(_args.amount0Desired, _args.amount1Desired, amount0Uni, amount1Uni, 0, _args.feeTier);
                
         // Prepare protocol open arguments
@@ -116,7 +118,7 @@ contract DerivioA is ReentrancyGuard {
         token0.safeTransferFrom(msg.sender, address(this), _args.amount0Desired);
         token1.safeTransferFrom(msg.sender, address(this), _args.amount1Desired);
         
-        (uint256 amount0Uni, uint256 amount1Uni, uint256 collateralAmount) = calcOptimalAmount(_args, sqrtPriceX96, tickCurrent, true);
+        (uint256 amount0Uni, uint256 amount1Uni, uint256 collateralAmount, uint256 shortDelta) = calcOptimalAmount(_args, sqrtPriceX96, tickCurrent, _args.shortLeverage);
         (_args.amount0Desired, _args.amount1Desired) = swapToOptimalAmount(_args.amount0Desired, _args.amount1Desired, amount0Uni, amount1Uni, collateralAmount, _args.feeTier);
 
         token0.approve(address(uniV3Manager), _args.amount0Desired);
@@ -126,10 +128,7 @@ contract DerivioA is ReentrancyGuard {
         // Prepare protocol open arguments
         DerivioPositionManager.ProtocolOpenArg[] memory openArgs = new DerivioPositionManager.ProtocolOpenArg[](2);
         openArgs[0] = createUniV3ProtocolOpenArg(_args, sqrtPriceX96);
-
-        uint256 shortDelta = collateralAmount * 1;
-        bool isLong = false;
-        openArgs[1] = createGmxProtocolOpenArg(_args.value, isLong, collateralAmount, shortDelta);
+        openArgs[1] = createGmxProtocolOpenArg(_args.value, collateralAmount, shortDelta);
 
         // Open positions
         return derivioPositionManager.openProtocolsPosition{ value: _args.value }(_args.recipient, openArgs);
@@ -172,11 +171,12 @@ contract DerivioA is ReentrancyGuard {
         return uniV3Arg;
     }
 
-    function createGmxProtocolOpenArg(uint256 _value, bool _isLong, uint256 _collateralAmount, uint256 _shortDelta) 
+    function createGmxProtocolOpenArg(uint256 _value, uint256 _collateralAmount, uint256 _shortDelta) 
         internal view 
         returns (DerivioPositionManager.ProtocolOpenArg memory gmxArg) 
     {
         uint256 acceptPrice = 0;
+        bool _isLong = false;
 
         gmxArg = DerivioPositionManager.ProtocolOpenArg({
             manager: gmxManager,
@@ -310,16 +310,23 @@ contract DerivioA is ReentrancyGuard {
         PositionArgs memory _args,
         uint160 _sqrtPriceX96, 
         int24 _tickCurrent,
-        bool _isShort
+        uint256 shortLeverage
     )
         public
-        returns (uint256 amount0Uni, uint256 amount1Uni, uint256 amountCollateral)
+        returns (uint256 amount0Uni, uint256 amount1Uni, uint256 amountCollateral, uint256 shortDelta)
     {
         uint256 amount0Total = _args.amount0Desired + uniHelper.amount1ToAmount0(_args.amount1Desired, _sqrtPriceX96);
 
-        if (_isShort) {
-            (uint256 amount0TotalSim, , , , uint256 amountLowerSim, ) = uniHelper.ratioAtTick(_tickCurrent, _args.tickLower, _args.tickUpper, false);
-            amountCollateral = amount0Total * amountLowerSim / amount0TotalSim;
+        if (shortLeverage != 0) {
+            require(shortLeverage >= shortDenominator, "shortLeverage too small");
+
+            (uint256 amount0TotalSim, , , , uint256 amount0LowerSim, ) = uniHelper.ratioAtTick(_tickCurrent, _args.tickLower, _args.tickUpper, false);
+            amountCollateral = amount0Total * amount0LowerSim / amount0TotalSim;
+
+            // apply leverage
+            shortDelta = amountCollateral;
+            amountCollateral = amountCollateral * shortDenominator / shortLeverage;
+
             amount0Total -= amountCollateral;
 
             if (!isZeroCollateral) {

@@ -70,7 +70,7 @@ contract MimGmxPosition is ReentrancyGuard {
         console.log('isLong:', isLong);
         console.log('_acceptPrice:', _acceptPrice);
         console.log("collateral balance before:", IERC20(collateralToken).balanceOf(address(this)));
-        
+
         gmxPositionRouter.createIncreasePosition{ value: msg.value }(
             path, 
             indexToken, 
@@ -146,6 +146,9 @@ contract MimGmxPosition is ReentrancyGuard {
         console.log("isLong: %s", isLong);
         console.log("sizeDelta: %s", sizeDelta_);
         console.log("collateral: %s", collateral_);
+        console.log("entryFundingRate_: %s", entryFundingRate_);
+        console.log("reserveAmount_: %s", reserveAmount_);
+        console.log("lastIncreasedTime_: %s", lastIncreasedTime_);
         console.log("collateral amount: ", IERC20(collateralToken).balanceOf(address(this)));
         console.log("index amount: ", IERC20(indexToken).balanceOf(address(this)));
 
