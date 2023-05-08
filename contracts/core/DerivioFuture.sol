@@ -67,7 +67,7 @@ contract DerivioFuture is ReentrancyGuard {
     {
         gmxArg = DerivioPositionManager.ProtocolOpenArg({
             manager: gmxManager,
-            senderValue: _value,
+            value: _value,
             funds: new IProtocolPositionManager.Fund[](1),
             inputs: abi.encode(
                 address(collateralToken),
@@ -99,7 +99,7 @@ contract DerivioFuture is ReentrancyGuard {
             protocolCloseArgs[i] = DerivioPositionManager.ProtocolCloseArg({
                 manager: gmxManager,
                 inputs: abi.encode(position[i].key, _args.minOut, _args.acceptPrice),
-                senderValue: _args.value
+                value: _args.value
             });
         }
 

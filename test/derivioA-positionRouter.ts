@@ -21,6 +21,7 @@ import { fundErc20 } from "../src/fundErc20";
 import { setPricesWithBitsAndExecute, getBlockTime } from "../src/executeGmxPosition";
 import { getPriceBits } from "../src/utilities";
 import { BytesLike, ContractReceipt } from "ethers";
+import { inspect } from 'util';
 
 type Position = ReturnType<DerivioPositionManager["getAllPositions"]> extends Promise<Array<infer T>> ? T : never;
 // type AggregateInfo = Position["aggregateInfos"][number];
@@ -136,13 +137,31 @@ describe("DerivioA test", function () {
     if (shortLeverage != 0) {
       const positionKeeper = await ethers.getImpersonatedSigner(addresses.GMXFastPriceFeed);
       const tx = await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
-      // await gmxPositionRouter.connect(positionKeeper).executeDecreasePositions(999999999, addresses.GMXFastPriceFeed);
+      await gmxPositionRouter.connect(positionKeeper).executeDecreasePositions(999999999, addresses.GMXFastPriceFeed);
 
-      const receipt = await tx.wait();
       // Print out all events in the transaction
-      for (const event of receipt.events) {
-        console.log(event);
-      }
+      // const receipt = await tx.wait();
+      // for (const event of receipt.events || []) {
+      //   try {
+      //     const parsedEvent = gmxFastPriceFeed.interface.parseLog(event);
+      //     console.log();
+      //     console.log();
+      //     console.log(`Log index: ${event.logIndex}`, `Event name: ${parsedEvent.name}`);
+          
+      //     const replacer = (key, value) => {
+      //       if (value && value.type === 'BigNumber' && value.hex) {
+      //         return value.toBigInt().toString(); // Convert BigNumber hex to string
+      //       }
+      //       return value;
+      //     };
+      
+      //     console.log(`Event args: ${JSON.stringify(parsedEvent.args, replacer, 2)}`);
+      //     console.log("----");
+      //   } 
+      //   catch (error) {
+      //     console.log("Unrecognized event:", inspect(event, { depth: null, colors: true }));
+      //   };
+      // }
     }
   }
   
@@ -244,15 +263,14 @@ describe("DerivioA test", function () {
     //   await openDerivioA(-25, 10, 0, 0);
       
     //   console.log(await derivioPositionManager.getAllPositions(owner.address));
-    //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
     // });
 
-    it("#2 open DerivioAL by Position Router", async function () {
+    // it("#2 open DerivioAL by Position Router", async function () {
       
-      await openDerivioA(-250, 100, 1000000, 0.02);
+    //   await openDerivioA(-25, 10, 1000000, 0.02);
       
-      console.log('positionsInfos:', await getPositionsInfos(derivioPositionManager, owner.address));
-    });
+    //   console.log('positionsInfos:', await getPositionsInfos(derivioPositionManager, owner.address));
+    // });
 
     // it("#3 close DerivioAS by Position Router", async function () {
       
@@ -376,14 +394,15 @@ describe("DerivioA test", function () {
       
     //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
       
-    //   let value = ethers.utils.parseUnits("0.02", 18);
+    //   let value = ethers.utils.parseUnits("0.0001", 18);
 
-    //   await fundErc20(usdc, addresses.USDCWhale, owner.address, 20, 6);
+    //   await fundErc20(usdc, addresses.USDCWhale, owner.address, 50, 6);
     //   await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
       
     //   const collateralAmount = await usdc.balanceOf(owner.address);
-    //   const sizeDelta = collateralAmount.mul(5);
+    //   const sizeDelta = collateralAmount.mul(500).div(100);
 
+    //   // Long
     //   await positionRouter.openDerivioFuturePositions([
     //     {
     //       recipient: owner.address,
@@ -398,28 +417,67 @@ describe("DerivioA test", function () {
     //     { value: value }
     //   );
 
-    //   console.log('setPricesWithBitsAndExecute.........................');
+    //   // Short
+    //   // await positionRouter.openDerivioFuturePositions([
+    //   //   {
+    //   //     recipient: owner.address,
+    //   //     value: value,
+    //   //     isLong: false,
+    //   //     collateralAmount: collateralAmount,
+    //   //     sizeDelta: sizeDelta,
+    //   //     acceptPrice: 0,
+    //   //   }],
+    //   //   usdc.address,
+    //   //   weth.address,
+    //   //   { value: value }
+    //   // );
+
+    //   // console.log('setPricesWithBitsAndExecute.........................');
     //   const gmxKeeper = await ethers.getImpersonatedSigner(addresses.GMXKeeper);
     //   // await gmxFastPriceFeed.connect(gmxKeeper).setPricesWithBits(getPriceBits([]), await getBlockTime());
-    //   await gmxFastPriceFeed.connect(gmxKeeper).setPricesWithBitsAndExecute(
-    //     "443915394701494028093366599013166",
-    //     await getBlockTime(), 
-    //     9999999999, // _endIndexForIncreasePositions
-    //     9999999999, // _endIndexForDecreasePositions
-    //     1000, // _maxIncreasePositions
-    //     1000 // _maxDecreasePositions
-    //   );
+    //   // await gmxFastPriceFeed.connect(gmxKeeper).setPricesWithBitsAndExecute(
+    //   //   "443915394701494028093366599013166",
+    //   //   await getBlockTime(), 
+    //   //   9999999999, // _endIndexForIncreasePositions
+    //   //   9999999999, // _endIndexForDecreasePositions
+    //   //   1000, // _maxIncreasePositions
+    //   //   1000 // _maxDecreasePositions
+    //   // );
 
     //   // await gmxFastPriceFeed.connect(gmxKeeper).setPricesWithBits("443915394701494028093366599013166", await getBlockTime());
 
-    //   // const positionKeeper = await ethers.getImpersonatedSigner(addresses.GMXFastPriceFeed);
-    //   // await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
-    //   // await gmxPositionRouter.connect(positionKeeper).executeDecreasePositions(999999999, addresses.GMXFastPriceFeed);
+    //   const positionKeeper = await ethers.getImpersonatedSigner(addresses.GMXFastPriceFeed);
+    //   const tx = await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
+    //   await gmxPositionRouter.connect(positionKeeper).executeDecreasePositions(999999999, addresses.GMXFastPriceFeed);
+    //   await gmxFastPriceFeed.connect(gmxKeeper).setPricesWithBits("443915394701494028093366599013166", await getBlockTime());
+
+    //   const receipt = await tx.wait();
+    //   for (const event of receipt.events || []) {
+    //     try {
+    //       const parsedEvent = gmxFastPriceFeed.interface.parseLog(event);
+    //       console.log();
+    //       console.log();
+    //       console.log(`Log index: ${event.logIndex}`, `Event name: ${parsedEvent.name}`);
+
+    //       // Loop through the parsedEvent.args array and parse all parameters
+    //       const eventParams = Object.entries(parsedEvent.args).slice(1); // Skip the first element (event signature)
+    //       for (const [key, value] of eventParams) {
+    //         if (isNaN(key)) { // Check if the key is a string (not a number)
+    //           console.log(`${key}:`, value);
+    //         }
+    //       }
+
+    //       console.log("----");
+    //     } catch (error) {
+    //       console.log("Unrecognized event:", inspect(event, { depth: null, colors: true }));
+    //     }
+    //   }
+
 
     //   const positions = await derivioPositionManager.getAllPositions(owner.address);
     //   const positionKeys = positions.map(pos => pos.positionKey);
     //   console.log(positions);
-    //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+    //   // console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
       
     //   // value = ethers.utils.parseUnits("0.0001", 18);
     //   // await positionRouter.closeDerivioFuture([
@@ -443,6 +501,62 @@ describe("DerivioA test", function () {
     //   // expect(newPositionKeys.length).to.equal(positionKeys.length - 1);
     //   // console.log(newPositionKeys);
     // });
+
+    it("#11 Should be open DerivioAL by with leverage", async function () {
+      
+      await openDerivioA(-25, 10, 2000000, 0.0001);
+      console.log('positionsInfos:', await getPositionsInfos(derivioPositionManager, owner.address));
+    });
+
+    it("#12 Open DerivioA", async function () {
+      
+      const slot0 = await uniswapV3Pool.slot0();
+      const tickSpacing = await uniswapV3Pool.tickSpacing();
+    
+      const lowerTick = slot0.tick - (slot0.tick % tickSpacing) -25 * tickSpacing;
+      const upperTick = slot0.tick - (slot0.tick % tickSpacing) +10 * tickSpacing;
+    
+      await fundErc20(usdc, addresses.USDCWhale, owner.address, 1000, 6);
+    
+      await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
+      await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
+      
+      await positionRouter.openDerivioAPositions([
+        {
+          recipient: owner.address,
+          value: ethers.utils.parseUnits("0.0001", 18),
+          tickLower: lowerTick,
+          tickUpper: upperTick,
+          feeTier: feeTier,
+          amount0Desired: 0,
+          amount1Desired: ethers.utils.parseUnits("500", 6),
+          shortLeverage: 0,
+          swapMaxSlippage: 0,
+          shortMaxSlippage: 0,
+        },
+        {
+          recipient: owner.address,
+          value: ethers.utils.parseUnits("0.0001", 18),
+          tickLower: lowerTick,
+          tickUpper: upperTick,
+          feeTier: feeTier,
+          amount0Desired: 0,
+          amount1Desired: ethers.utils.parseUnits("500", 6),
+          shortLeverage: 1e6,
+          swapMaxSlippage: 0,
+          shortMaxSlippage: 0,
+        }],
+        weth.address,
+        usdc.address,
+        { value: ethers.utils.parseUnits("0.0002", 18) }
+      );
+
+      const positionKeeper = await ethers.getImpersonatedSigner(addresses.GMXFastPriceFeed);
+      await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
+      await gmxPositionRouter.connect(positionKeeper).executeDecreasePositions(999999999, addresses.GMXFastPriceFeed);
+
+      console.log('positionsInfos:', await getPositionsInfos(derivioPositionManager, owner.address));
+    });
 
 
   }); 

@@ -26,7 +26,7 @@ contract DerivioPositionManager is ReentrancyGuard {
 
     struct ProtocolOpenArg {
         IProtocolPositionManager manager;
-        uint256 senderValue;
+        uint256 value;
         IProtocolPositionManager.Fund[] funds;
         bytes inputs;
     }
@@ -39,7 +39,7 @@ contract DerivioPositionManager is ReentrancyGuard {
 
     struct ProtocolCloseArg {
         IProtocolPositionManager manager;
-        uint256 senderValue;
+        uint256 value;
         bytes inputs;
     }
 
@@ -81,7 +81,7 @@ contract DerivioPositionManager is ReentrancyGuard {
 
             _args[i].manager.receiveFund(msg.sender, _args[i].funds);
             (bytes32 key, bytes memory infos) = _args[i].manager
-                .openPosition{ value: _args[i].senderValue }(_account, _args[i].inputs);
+                .openPosition{ value: _args[i].value }(_account, _args[i].inputs);
 
             result_[i] = ProtocolOpenResult({
                 manager: _args[i].manager,
@@ -103,7 +103,7 @@ contract DerivioPositionManager is ReentrancyGuard {
         for (uint i = 0; i < _args.length; i++) {
             
             (bytes memory positionInfo, IProtocolPositionManager.Fund[] memory closedFunds) = 
-                _args[i].manager.closePosition{ value: _args[i].senderValue }(_account, _args[i].inputs);
+                _args[i].manager.closePosition{ value: _args[i].value }(_account, _args[i].inputs);
 
             _args[i].manager.returnFund(msg.sender, closedFunds);
 

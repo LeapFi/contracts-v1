@@ -63,11 +63,16 @@ contract MimGmxPosition is ReentrancyGuard {
     {
         IERC20(collateralToken).approve(address(gmxRouter), _collateralAmount);
         bytes32 referralCode = 0;
+        uint256 executionFee = msg.value;
         
+        console.log('MimVaultAddr:', address(this));
         console.log('msg.value', msg.value);
+        console.log('executionFee', executionFee);
+        console.log('path length:', path.length);
         console.log('path', path[0]);
         console.log('indexToken', indexToken);
         console.log('_collateralAmount', _collateralAmount);
+        console.log('_sizeDelta', _sizeDelta);
         console.log('isLong', isLong);
         console.log('_acceptPrice', _acceptPrice);
         console.logBytes32(referralCode);
@@ -85,7 +90,7 @@ contract MimGmxPosition is ReentrancyGuard {
         // console.log('_acceptPrice:', _acceptPrice);
         // console.log("collateral balance before:", IERC20(collateralToken).balanceOf(address(this)));
 
-        gmxPositionRouter.createIncreasePosition{ value: msg.value }(
+        gmxPositionRouter.createIncreasePosition{ value: executionFee }(
             path, 
             indexToken, 
             _collateralAmount,
@@ -93,7 +98,7 @@ contract MimGmxPosition is ReentrancyGuard {
             _sizeDelta, 
             isLong, 
             _acceptPrice, 
-            2e16,
+            executionFee,
             referralCode,
             address(this)
         );
@@ -107,6 +112,7 @@ contract MimGmxPosition is ReentrancyGuard {
         external payable 
     {
         (uint256 sizeDelta, uint256 collateralDelta, , , , , , ) = gmxVault.getPosition(address(this), collateralToken, indexToken, isLong);
+        uint256 executionFee = msg.value;
         
         console.log('_recipient:', _recipient);
         console.log('_minOut:', _minOut);
@@ -117,7 +123,6 @@ contract MimGmxPosition is ReentrancyGuard {
         console.log('isLong:', isLong);
         console.log('msg.value:', msg.value);
 
-        uint256 executionFee = gmxPositionRouter.minExecutionFee();
         // bool withdrawETH = false; // Set to true if you want to receive ETH instead of the collateral token
 
         gmxPositionRouter.createDecreasePosition{ value: executionFee }(
@@ -159,6 +164,7 @@ contract MimGmxPosition is ReentrancyGuard {
         (sizeDelta_, collateral_, averagePrice_, entryFundingRate_, 
         reserveAmount_, realisedPnl_, realisedPnLPositive_, lastIncreasedTime_) = gmxVault.getPosition(address(this), collateralToken, indexToken, isLong);
 
+        console.log('MimVaultAddr:', address(this));
         console.log("isLong: %s", isLong);
         console.log("sizeDelta: %s", sizeDelta_);
         console.log("collateral: %s", collateral_);

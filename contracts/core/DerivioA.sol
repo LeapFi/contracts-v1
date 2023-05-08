@@ -150,7 +150,7 @@ contract DerivioA is ReentrancyGuard {
 
         uniV3Arg = DerivioPositionManager.ProtocolOpenArg({
             manager: uniV3Manager,
-            senderValue: 0,
+            value: 0,
             funds: new IProtocolPositionManager.Fund[](2),
             inputs: abi.encode(
                 _args.tickLower,
@@ -180,7 +180,7 @@ contract DerivioA is ReentrancyGuard {
 
         gmxArg = DerivioPositionManager.ProtocolOpenArg({
             manager: gmxManager,
-            senderValue: _value,
+            value: _value,
             funds: new IProtocolPositionManager.Fund[](1),
             inputs: abi.encode(
                 address(collateralToken),
@@ -208,14 +208,14 @@ contract DerivioA is ReentrancyGuard {
                 protocolCloseArgs[i] = DerivioPositionManager.ProtocolCloseArg({
                     manager: uniV3Manager,
                     inputs: abi.encode(position[i].key),
-                    senderValue: 0
+                    value: 0
                 });
 
             } else if (position[i].manager == gmxManager) {
                 protocolCloseArgs[i] = DerivioPositionManager.ProtocolCloseArg({
                     manager: gmxManager,
                     inputs: abi.encode(position[i].key, uint256(0), type(uint256).max),
-                    senderValue: _args.value
+                    value: _args.value
                 });
             }
         }
@@ -331,6 +331,7 @@ contract DerivioA is ReentrancyGuard {
 
             if (!isZeroCollateral) {
                 amountCollateral = uniHelper.amount0ToAmount1(amountCollateral, _sqrtPriceX96);
+                shortDelta = uniHelper.amount0ToAmount1(shortDelta, _sqrtPriceX96);
             }
         }
 

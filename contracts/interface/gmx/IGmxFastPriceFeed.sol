@@ -26,30 +26,7 @@ interface IGmxFastPriceFeed {
     event MaxCumulativeDeltaDiffExceeded(address token, uint256 refPrice, uint256 fastPrice, uint256 cumulativeRefDelta, uint256 cumulativeFastDelta);
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
-    event ClosePosition(
-        bytes32 key,
-        uint256 size,
-        uint256 collateral,
-        uint256 averagePrice,
-        uint256 entryFundingRate,
-        uint256 reserveAmount,
-        int256 realisedPnl
-    );
-    event ExecuteDecreasePosition(
-        address indexed account,
-        address[] path,
-        address indexToken,
-        uint256 collateralDelta,
-        uint256 sizeDelta,
-        bool isLong,
-        address receiver,
-        uint256 acceptablePrice,
-        uint256 minOut,
-        uint256 executionFee,
-        uint256 blockGap,
-        uint256 timeGap
-    );
-
+    
     event SetIsLeverageEnabled(bool isLeverageEnabled);
     event SetDelayValues(uint256 minBlockDelayKeeper, uint256 minTimeDelayPublic, uint256 maxTimeDelay);
     event SetRequestKeysStartValues(uint256 increasePositionRequestKeysStart, uint256 decreasePositionRequestKeysStart);
@@ -72,7 +49,151 @@ interface IGmxFastPriceFeed {
     event IncreaseGuaranteedUsd(address token, uint256 amount);
     event DecreaseGuaranteedUsd(address token, uint256 amount);
 
-    event Swap(address account, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut);
+    event Swap(address account, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut, uint256 amountOutAfterFees, uint256 feeBasisPoints);
+
+    event CreateIncreaseOrder(
+        address indexed account,
+        uint256 orderIndex,
+        address purchaseToken,
+        uint256 purchaseTokenAmount,
+        address collateralToken,
+        address indexToken,
+        uint256 sizeDelta,
+        bool isLong,
+        uint256 triggerPrice,
+        bool triggerAboveThreshold,
+        uint256 executionFee
+    );
+    event CancelIncreaseOrder(
+        address indexed account,
+        uint256 orderIndex,
+        address purchaseToken,
+        uint256 purchaseTokenAmount,
+        address collateralToken,
+        address indexToken,
+        uint256 sizeDelta,
+        bool isLong,
+        uint256 triggerPrice,
+        bool triggerAboveThreshold,
+        uint256 executionFee
+    );
+    event ExecuteIncreaseOrder(
+        address indexed account,
+        uint256 orderIndex,
+        address purchaseToken,
+        uint256 purchaseTokenAmount,
+        address collateralToken,
+        address indexToken,
+        uint256 sizeDelta,
+        bool isLong,
+        uint256 triggerPrice,
+        bool triggerAboveThreshold,
+        uint256 executionFee,
+        uint256 executionPrice
+    );
+    event UpdateIncreaseOrder(
+        address indexed account,
+        uint256 orderIndex,
+        address collateralToken,
+        address indexToken,
+        bool isLong,
+        uint256 sizeDelta,
+        uint256 triggerPrice,
+        bool triggerAboveThreshold
+    );
+    event CreateDecreaseOrder(
+        address indexed account,
+        uint256 orderIndex,
+        address collateralToken,
+        uint256 collateralDelta,
+        address indexToken,
+        uint256 sizeDelta,
+        bool isLong,
+        uint256 triggerPrice,
+        bool triggerAboveThreshold,
+        uint256 executionFee
+    );
+    event CancelDecreaseOrder(
+        address indexed account,
+        uint256 orderIndex,
+        address collateralToken,
+        uint256 collateralDelta,
+        address indexToken,
+        uint256 sizeDelta,
+        bool isLong,
+        uint256 triggerPrice,
+        bool triggerAboveThreshold,
+        uint256 executionFee
+    );
+    event ExecuteDecreaseOrder(
+        address indexed account,
+        uint256 orderIndex,
+        address collateralToken,
+        uint256 collateralDelta,
+        address indexToken,
+        uint256 sizeDelta,
+        bool isLong,
+        uint256 triggerPrice,
+        bool triggerAboveThreshold,
+        uint256 executionFee,
+        uint256 executionPrice
+    );
+    event UpdateDecreaseOrder(
+        address indexed account,
+        uint256 orderIndex,
+        address collateralToken,
+        uint256 collateralDelta,
+        address indexToken,
+        uint256 sizeDelta,
+        bool isLong,
+        uint256 triggerPrice,
+        bool triggerAboveThreshold
+    );
+    event CreateSwapOrder(
+        address indexed account,
+        uint256 orderIndex,
+        address[] path,
+        uint256 amountIn,
+        uint256 minOut,
+        uint256 triggerRatio,
+        bool triggerAboveThreshold,
+        bool shouldUnwrap,
+        uint256 executionFee
+    );
+    event CancelSwapOrder(
+        address indexed account,
+        uint256 orderIndex,
+        address[] path,
+        uint256 amountIn,
+        uint256 minOut,
+        uint256 triggerRatio,
+        bool triggerAboveThreshold,
+        bool shouldUnwrap,
+        uint256 executionFee
+    );
+    event UpdateSwapOrder(
+        address indexed account,
+        uint256 ordexIndex,
+        address[] path,
+        uint256 amountIn,
+        uint256 minOut,
+        uint256 triggerRatio,
+        bool triggerAboveThreshold,
+        bool shouldUnwrap,
+        uint256 executionFee
+    );
+    event ExecuteSwapOrder(
+        address indexed account,
+        uint256 orderIndex,
+        address[] path,
+        uint256 amountIn,
+        uint256 minOut,
+        uint256 amountOut,
+        uint256 triggerRatio,
+        bool triggerAboveThreshold,
+        bool shouldUnwrap,
+        uint256 executionFee
+    );
 
     event IncreasePosition(
         bytes32 key,
@@ -115,7 +236,136 @@ interface IGmxFastPriceFeed {
         uint256 averagePrice,
         uint256 entryFundingRate,
         uint256 reserveAmount,
-        int256 realisedPnl,
-        uint256 markPrice
+        int256 realisedPnl
     );
+    event ClosePosition(
+        bytes32 key,
+        uint256 size,
+        uint256 collateral,
+        uint256 averagePrice,
+        uint256 entryFundingRate,
+        uint256 reserveAmount,
+        int256 realisedPnl
+    );
+
+    event SetDepositFee(uint256 depositFee);
+    event SetIncreasePositionBufferBps(uint256 increasePositionBufferBps);
+    event SetReferralStorage(address referralStorage);
+    event SetAdmin(address admin);
+    event WithdrawFees(address token, address receiver, uint256 amount);
+
+    event SetMaxGlobalSizes(
+        address[] tokens,
+        uint256[] longSizes,
+        uint256[] shortSizes
+    );
+
+    event IncreasePositionReferral(
+        address account,
+        uint256 sizeDelta,
+        uint256 marginFeeBasisPoints,
+        bytes32 referralCode,
+        address referrer
+    );
+
+    event DecreasePositionReferral(
+        address account,
+        uint256 sizeDelta,
+        uint256 marginFeeBasisPoints,
+        bytes32 referralCode,
+        address referrer
+    );
+
+    event CreateIncreasePosition(
+        address indexed account,
+        address[] path,
+        address indexToken,
+        uint256 amountIn,
+        uint256 minOut,
+        uint256 sizeDelta,
+        bool isLong,
+        uint256 acceptablePrice,
+        uint256 executionFee,
+        uint256 index,
+        uint256 queueIndex,
+        uint256 blockNumber,
+        uint256 blockTime,
+        uint256 gasPrice
+    );
+
+    event ExecuteIncreasePosition(
+        address indexed account,
+        address[] path,
+        address indexToken,
+        uint256 amountIn,
+        uint256 minOut,
+        uint256 sizeDelta,
+        bool isLong,
+        uint256 acceptablePrice,
+        uint256 executionFee,
+        uint256 blockGap,
+        uint256 timeGap
+    );
+
+    event CancelIncreasePosition(
+        address indexed account,
+        address[] path,
+        address indexToken,
+        uint256 amountIn,
+        uint256 minOut,
+        uint256 sizeDelta,
+        bool isLong,
+        uint256 acceptablePrice,
+        uint256 executionFee,
+        uint256 blockGap,
+        uint256 timeGap
+    );
+
+    event CreateDecreasePosition(
+        address indexed account,
+        address[] path,
+        address indexToken,
+        uint256 collateralDelta,
+        uint256 sizeDelta,
+        bool isLong,
+        address receiver,
+        uint256 acceptablePrice,
+        uint256 minOut,
+        uint256 executionFee,
+        uint256 index,
+        uint256 queueIndex,
+        uint256 blockNumber,
+        uint256 blockTime
+    );
+
+    event ExecuteDecreasePosition(
+        address indexed account,
+        address[] path,
+        address indexToken,
+        uint256 collateralDelta,
+        uint256 sizeDelta,
+        bool isLong,
+        address receiver,
+        uint256 acceptablePrice,
+        uint256 minOut,
+        uint256 executionFee,
+        uint256 blockGap,
+        uint256 timeGap
+    );
+
+    event CancelDecreasePosition(
+        address indexed account,
+        address[] path,
+        address indexToken,
+        uint256 collateralDelta,
+        uint256 sizeDelta,
+        bool isLong,
+        address receiver,
+        uint256 acceptablePrice,
+        uint256 minOut,
+        uint256 executionFee,
+        uint256 blockGap,
+        uint256 timeGap
+    );
+
 }
