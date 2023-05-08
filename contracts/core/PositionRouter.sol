@@ -75,21 +75,27 @@ contract PositionRouter is ReentrancyGuard {
         ));
     }
     
-    function openDerivioAPositions(DerivioA.PositionArgs[] memory _argsList, address _token0, address _token1)
+    function openDerivioAPositions(DerivioA.OpenArgs[] memory _argsList, address _token0, address _token1)
         payable external nonReentrant
         returns (DerivioPositionManager.ProtocolOpenResult[][] memory)
     {
         DerivioA derivioA = getDerivioAContract(derivioAId, _token0, _token1);
         DerivioPositionManager.ProtocolOpenResult[][] memory results = new DerivioPositionManager.ProtocolOpenResult[][](_argsList.length);
 
-        for (uint256 i = 0; i < _argsList.length; i++) {
+        uint256 sumValue = 0;
+        for (uint i = 0; i < _argsList.length; i++) {
+            sumValue += _argsList[i].value;
+        }
+        require(msg.value == sumValue, "val error");
+
+        for (uint i = 0; i < _argsList.length; i++) {
             results[i] = openDerivioA(derivioA, IERC20(_token0), IERC20(_token1), _argsList[i]);
         }
 
         return results;
     }
 
-    function openDerivioA(DerivioA _derivioA, IERC20 _token0, IERC20 _token1, DerivioA.PositionArgs memory _args)
+    function openDerivioA(DerivioA _derivioA, IERC20 _token0, IERC20 _token1, DerivioA.OpenArgs memory _args)
         internal
         returns (DerivioPositionManager.ProtocolOpenResult[] memory)
     {
@@ -113,7 +119,7 @@ contract PositionRouter is ReentrancyGuard {
         DerivioFuture derivioFuture = getDerivioFutureContract(derivioFutureId, _collateralToken, _indexToken);
         DerivioPositionManager.ProtocolOpenResult[][] memory results = new DerivioPositionManager.ProtocolOpenResult[][](_argsList.length);
 
-        for (uint256 i = 0; i < _argsList.length; i++) {
+        for (uint i = 0; i < _argsList.length; i++) {
             results[i] = openDerivioFuture(derivioFuture, IERC20(_collateralToken), _argsList[i]);
         }
 
@@ -130,7 +136,7 @@ contract PositionRouter is ReentrancyGuard {
         return _derivioFuture.openFuture{ value: _args.value }(_args);
     }
 
-    function closeDerivioA(DerivioA.DerivioACloseArgs[] memory _argsList, address _token0, address _token1) 
+    function closeDerivioA(DerivioA.CloaseArgs[] memory _argsList, address _token0, address _token1) 
         external payable nonReentrant 
         returns (DerivioPositionManager.ProtocolCloseResult[][] memory)
     {

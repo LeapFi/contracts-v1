@@ -79,7 +79,7 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         return liquidities[_positionId];
     }
 
-    function convertToOpenPositionArgs(bytes memory _args) internal returns (UniV3OpenArgs memory) {
+    function convertToOpenOpenArgs(bytes memory _args) internal returns (UniV3OpenArgs memory) {
 
         (   int24 tickLower, 
             int24 tickUpper,
@@ -103,7 +103,7 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         external payable override 
         returns (bytes32 key_, bytes memory result_) 
     {
-        UniV3OpenArgs memory uniV3Args = convertToOpenPositionArgs(_args);
+        UniV3OpenArgs memory uniV3Args = convertToOpenOpenArgs(_args);
 
         pool = IUniswapV3Pool(
                     uniFactory.getPool(

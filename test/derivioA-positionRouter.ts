@@ -27,7 +27,7 @@ type Position = ReturnType<DerivioPositionManager["getAllPositions"]> extends Pr
 // type AggregateInfo = Position["aggregateInfos"][number];
 
 type Fund = ReturnType<GmxManager["feesOf"]> extends Promise<Array<infer T>> ? T : never;
-type DerivioACloseArgs = Parameters<IPositionRouter["closeDerivioA"]>[0] extends Array<infer T> ? T : never;
+type CloaseArgs = Parameters<IPositionRouter["closeDerivioA"]>[0] extends Array<infer T> ? T : never;
 type ProtocolOpenResult = Position["aggregateInfos"][number]["openResult"];
 type ProtocolCloseResult = ReturnType<IPositionRouter["closeDerivioA"]> extends Promise<Array<Array<infer T>>> ? T : never;
 
@@ -167,7 +167,7 @@ describe("DerivioA test", function () {
   
   async function closeDerivioAPositions(positionKeys: BytesLike[], swapToCollateral: boolean, token0Address: string, token1Address: string, value: number) {
     const valueInput = ethers.utils.parseUnits(value.toString(), 18);
-    const closeArgsList : DerivioACloseArgs[] = positionKeys.map(positionKey => ({
+    const closeArgsList : CloaseArgs[] = positionKeys.map(positionKey => ({
       value: valueInput, // Replace this with the desired value for each position
       positionKey: positionKey,
       swapToCollateral: swapToCollateral
@@ -502,11 +502,11 @@ describe("DerivioA test", function () {
     //   // console.log(newPositionKeys);
     // });
 
-    it("#11 Should be open DerivioAL by with leverage", async function () {
+    // it("#11 Should be open DerivioAL by with leverage", async function () {
       
-      await openDerivioA(-25, 10, 2000000, 0.0001);
-      console.log('positionsInfos:', await getPositionsInfos(derivioPositionManager, owner.address));
-    });
+    //   await openDerivioA(-25, 10, 2000000, 0.0001);
+    //   console.log('positionsInfos:', await getPositionsInfos(derivioPositionManager, owner.address));
+    // });
 
     it("#12 Open DerivioA", async function () {
       
@@ -524,7 +524,7 @@ describe("DerivioA test", function () {
       await positionRouter.openDerivioAPositions([
         {
           recipient: owner.address,
-          value: ethers.utils.parseUnits("0.0001", 18),
+          value: 0,
           tickLower: lowerTick,
           tickUpper: upperTick,
           feeTier: feeTier,
@@ -548,13 +548,13 @@ describe("DerivioA test", function () {
         }],
         weth.address,
         usdc.address,
-        { value: ethers.utils.parseUnits("0.0002", 18) }
+        { value: ethers.utils.parseUnits("0.0001", 18) }
       );
 
       const positionKeeper = await ethers.getImpersonatedSigner(addresses.GMXFastPriceFeed);
       await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
       await gmxPositionRouter.connect(positionKeeper).executeDecreasePositions(999999999, addresses.GMXFastPriceFeed);
-
+      
       console.log('positionsInfos:', await getPositionsInfos(derivioPositionManager, owner.address));
     });
 

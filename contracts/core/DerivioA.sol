@@ -35,7 +35,7 @@ contract DerivioA is ReentrancyGuard {
 
     uint256 private constant shortDenominator = 1e6;
 
-    struct PositionArgs {
+    struct OpenArgs {
         address recipient;
         uint256 value;
         int24 tickLower;
@@ -48,7 +48,7 @@ contract DerivioA is ReentrancyGuard {
         uint256 shortMaxSlippage;
     }
     
-    struct DerivioACloseArgs {
+    struct CloaseArgs {
         uint256 value;
         bytes32 positionKey;
         bool swapToCollateral;
@@ -82,7 +82,7 @@ contract DerivioA is ReentrancyGuard {
         indexToken = _isZeroCollateral ? token1 : token0;
     }
 
-    function openAS(PositionArgs memory _args) 
+    function openAS(OpenArgs memory _args) 
         external nonReentrant 
         returns (DerivioPositionManager.ProtocolOpenResult[] memory)
     {
@@ -107,7 +107,7 @@ contract DerivioA is ReentrancyGuard {
         return derivioPositionManager.openProtocolsPosition(_args.recipient, openArgs);
     }
 
-    function openAL(PositionArgs memory _args) 
+    function openAL(OpenArgs memory _args) 
         external payable nonReentrant 
         returns (DerivioPositionManager.ProtocolOpenResult[] memory)
     {
@@ -134,7 +134,7 @@ contract DerivioA is ReentrancyGuard {
         return derivioPositionManager.openProtocolsPosition{ value: _args.value }(_args.recipient, openArgs);
     }
 
-    function createUniV3ProtocolOpenArg(PositionArgs memory _args, uint160 _sqrtPriceX96Current) 
+    function createUniV3ProtocolOpenArg(OpenArgs memory _args, uint160 _sqrtPriceX96Current) 
         internal view 
         returns (DerivioPositionManager.ProtocolOpenArg memory uniV3Arg) 
     {
@@ -196,7 +196,7 @@ contract DerivioA is ReentrancyGuard {
         gmxArg.funds[0].amount = _collateralAmount;
     }
 
-    function closePosition(address _account, DerivioACloseArgs memory _args)
+    function closePosition(address _account, CloaseArgs memory _args)
         external payable nonReentrant 
         returns (DerivioPositionManager.ProtocolCloseResult[] memory closedPositions_)
     {
@@ -307,7 +307,7 @@ contract DerivioA is ReentrancyGuard {
     }
 
     function calcOptimalAmount(
-        PositionArgs memory _args,
+        OpenArgs memory _args,
         uint160 _sqrtPriceX96, 
         int24 _tickCurrent,
         uint256 shortLeverage
