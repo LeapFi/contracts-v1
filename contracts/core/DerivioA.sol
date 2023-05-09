@@ -44,7 +44,7 @@ contract DerivioA is ReentrancyGuard {
         uint256 amount0Desired;
         uint256 amount1Desired;
         uint24 shortLeverage;
-        uint256 swapMaxSlippage;
+        uint160 swapSqrtPriceLimitX96;
         uint256 shortMaxSlippage;
     }
     
@@ -86,6 +86,10 @@ contract DerivioA is ReentrancyGuard {
         external nonReentrant 
         returns (DerivioPositionManager.ProtocolOpenResult[] memory)
     {
+        console.log('_args.swapSqrtPriceLimitX96:', _args.swapSqrtPriceLimitX96);
+        console.log('recover:', uniHelper.sqrtPriceX96ToPrice(uint160(_args.swapSqrtPriceLimitX96)));
+        
+
         IUniswapV3Pool pool = IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), _args.feeTier));
         uniHelper.validateTickSpacing(pool, _args.tickLower, _args.tickUpper);
         (uint160 sqrtPriceX96, int24 tickCurrent, , , , , ) = pool.slot0();
@@ -93,8 +97,8 @@ contract DerivioA is ReentrancyGuard {
         token0.safeTransferFrom(msg.sender, address(this), _args.amount0Desired);
         token1.safeTransferFrom(msg.sender, address(this), _args.amount1Desired);
         
-        (uint256 amount0Uni, uint256 amount1Uni, , ) = calcOptimalAmount(_args, sqrtPriceX96, tickCurrent, _args.shortLeverage);
-        (_args.amount0Desired, _args.amount1Desired) = swapToOptimalAmount(_args.amount0Desired, _args.amount1Desired, amount0Uni, amount1Uni, 0, _args.feeTier);
+        (uint256 amount0Uni, uint256 amount1Uni, , ) = calcOptimalAmount(_args, sqrtPriceX96, tickCurrent);
+        (_args.amount0Desired, _args.amount1Desired) = swapToOptimalAmount(_args.amount0Desired, _args.amount1Desired, amount0Uni, amount1Uni, 0, _args.feeTier, _args.swapSqrtPriceLimitX96); 
                
         // Prepare protocol open arguments
         DerivioPositionManager.ProtocolOpenArg[] memory openArgs = new DerivioPositionManager.ProtocolOpenArg[](1);
@@ -118,8 +122,8 @@ contract DerivioA is ReentrancyGuard {
         token0.safeTransferFrom(msg.sender, address(this), _args.amount0Desired);
         token1.safeTransferFrom(msg.sender, address(this), _args.amount1Desired);
         
-        (uint256 amount0Uni, uint256 amount1Uni, uint256 collateralAmount, uint256 shortDelta) = calcOptimalAmount(_args, sqrtPriceX96, tickCurrent, _args.shortLeverage);
-        (_args.amount0Desired, _args.amount1Desired) = swapToOptimalAmount(_args.amount0Desired, _args.amount1Desired, amount0Uni, amount1Uni, collateralAmount, _args.feeTier);
+        (uint256 amount0Uni, uint256 amount1Uni, uint256 collateralAmount, uint256 shortDelta) = calcOptimalAmount(_args, sqrtPriceX96, tickCurrent);
+        (_args.amount0Desired, _args.amount1Desired) = swapToOptimalAmount(_args.amount0Desired, _args.amount1Desired, amount0Uni, amount1Uni, collateralAmount, _args.feeTier, _args.swapSqrtPriceLimitX96);
 
         token0.approve(address(uniV3Manager), _args.amount0Desired);
         token1.approve(address(uniV3Manager), _args.amount1Desired);
@@ -176,7 +180,7 @@ contract DerivioA is ReentrancyGuard {
         returns (DerivioPositionManager.ProtocolOpenArg memory gmxArg) 
     {
         uint256 acceptPrice = 0;
-        bool _isLong = false;
+        bool isLong = false;
 
         gmxArg = DerivioPositionManager.ProtocolOpenArg({
             manager: gmxManager,
@@ -185,7 +189,7 @@ contract DerivioA is ReentrancyGuard {
             inputs: abi.encode(
                 address(collateralToken),
                 address(indexToken),
-                _isLong,
+                isLong,
                 _collateralAmount,
                 _shortDelta,
                 acceptPrice
@@ -210,7 +214,6 @@ contract DerivioA is ReentrancyGuard {
                     inputs: abi.encode(position[i].key),
                     value: 0
                 });
-
             } else if (position[i].manager == gmxManager) {
                 protocolCloseArgs[i] = DerivioPositionManager.ProtocolCloseArg({
                     manager: gmxManager,
@@ -231,7 +234,7 @@ contract DerivioA is ReentrancyGuard {
 
                 if (_args.swapToCollateral) {
                     uint24 feeTier = 500;
-                    (collect0, collect1) = swapToCollateral(collect0, collect1, feeTier);
+                    (collect0, collect1) = swapToCollateral(collect0, collect1, feeTier, 0);
                 }
                 
                 // Return the funds to the account
@@ -249,7 +252,8 @@ contract DerivioA is ReentrancyGuard {
         uint256 _amount0Uni,
         uint256 _amount1Uni,
         uint256 _collateralAmount,
-        uint24 _feeTier
+        uint24 _feeTier,
+        uint160 _sqrtPriceLimitX96
     )
         private
         returns (uint256 _amount0Out, uint256 _amount1Out)
@@ -271,11 +275,11 @@ contract DerivioA is ReentrancyGuard {
 
         if (amount1Swap > 0) {
             _amount1Desired -= amount1Swap;
-            _amount0Desired += swapExactInputSingle(token1, token0, amount1Swap, _feeTier);
+            _amount0Desired += swapExactInputSingle(token1, token0, amount1Swap, _feeTier, _sqrtPriceLimitX96);
         }
         else if (amount0Swap > 0) {
             _amount0Desired -= amount0Swap;
-            _amount1Desired += swapExactInputSingle(token0, token1, amount0Swap, _feeTier);
+            _amount1Desired += swapExactInputSingle(token0, token1, amount0Swap, _feeTier, _sqrtPriceLimitX96);
         }
 
         if (isZeroCollateral) {
@@ -289,7 +293,7 @@ contract DerivioA is ReentrancyGuard {
         _amount1Out = _amount1Desired;
     }
 
-    function swapToCollateral(uint256 _collect0, uint256 _collect1, uint24 _feeTier) internal returns (uint256 amount0, uint256 amount1) {
+    function swapToCollateral(uint256 _collect0, uint256 _collect1, uint24 _feeTier, uint160 _sqrtPriceLimitX96) internal returns (uint256 amount0, uint256 amount1) {
 
         amount0 = _collect0;
         amount1 = _collect1;
@@ -297,35 +301,34 @@ contract DerivioA is ReentrancyGuard {
         // Swap the non-collateral token to the collateral token
         if (isZeroCollateral) {
             // Swap token1 to token0 (collateral)
-            amount0 += swapExactInputSingle(token1, token0, _collect1, _feeTier);
+            amount0 += swapExactInputSingle(token1, token0, _collect1, _feeTier, _sqrtPriceLimitX96);
             amount1 = 0;
         } else {
             // Swap token0 to token1 (collateral)
             amount0 = 0;
-            amount1 += swapExactInputSingle(token0, token1, _collect0, _feeTier);
+            amount1 += swapExactInputSingle(token0, token1, _collect0, _feeTier, _sqrtPriceLimitX96);
         }
     }
 
     function calcOptimalAmount(
         OpenArgs memory _args,
         uint160 _sqrtPriceX96, 
-        int24 _tickCurrent,
-        uint256 shortLeverage
+        int24 _tickCurrent
     )
         public
         returns (uint256 amount0Uni, uint256 amount1Uni, uint256 amountCollateral, uint256 shortDelta)
     {
         uint256 amount0Total = _args.amount0Desired + uniHelper.amount1ToAmount0(_args.amount1Desired, _sqrtPriceX96);
 
-        if (shortLeverage != 0) {
-            require(shortLeverage >= shortDenominator, "shortLeverage too small");
+        if (_args.shortLeverage != 0) {
+            require(_args.shortLeverage >= shortDenominator, "shortLeverage too small");
 
             (uint256 amount0TotalSim, , , , uint256 amount0LowerSim, ) = uniHelper.ratioAtTick(_tickCurrent, _args.tickLower, _args.tickUpper, false);
             amountCollateral = amount0Total * amount0LowerSim / amount0TotalSim;
 
             // apply leverage
             shortDelta = amountCollateral;
-            amountCollateral = amountCollateral * shortDenominator / shortLeverage;
+            amountCollateral = amountCollateral * shortDenominator / _args.shortLeverage;
 
             amount0Total -= amountCollateral;
 
@@ -350,7 +353,8 @@ contract DerivioA is ReentrancyGuard {
         IERC20 _tokenIn,
         IERC20 _tokenOut,
         uint256 _amountIn,
-        uint24 _feeTier
+        uint24 _feeTier,
+        uint160 _sqrtPriceLimitX96
     ) 
         internal 
         returns (uint256 amountOut)
@@ -369,7 +373,7 @@ contract DerivioA is ReentrancyGuard {
                 deadline: block.timestamp,
                 amountIn: _amountIn,
                 amountOutMinimum: 0,
-                sqrtPriceLimitX96: 0
+                sqrtPriceLimitX96: _sqrtPriceLimitX96
             });
 
         amountOut = swapRouter.exactInputSingle(params);

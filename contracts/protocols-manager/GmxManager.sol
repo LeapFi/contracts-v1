@@ -43,11 +43,11 @@ contract GmxManager is ReentrancyGuard, IProtocolPositionManager {
             address _indexToken,
             bool _isLong,
             uint256 _collateralAmount,
-            uint256 _shortDelta,
+            uint256 _sizeDelta,
             uint256 _acceptPrice
         ) = abi.decode(_args, (address, address, bool, uint256, uint256, uint256));
 
-        require(_shortDelta >= _collateralAmount, "delta size too small");
+        require(_sizeDelta >= _collateralAmount, "delta size too small");
 
         MimGmxPosition mimGmxPosition = new MimGmxPosition(
             _account,
@@ -59,16 +59,23 @@ contract GmxManager is ReentrancyGuard, IProtocolPositionManager {
             _indexToken
         );
 
-        _shortDelta *= 10 ** (gmxDecimals - uint256(IERC20Metadata(_collateralToken).decimals()));
+        _sizeDelta *= 10 ** (gmxDecimals - uint256(IERC20Metadata(_collateralToken).decimals()));
 
         IERC20(_collateralToken).safeTransfer(address(mimGmxPosition), _collateralAmount);
         mimGmxPosition.openGmxPosition{ value: msg.value }(
             _collateralAmount,
-            _shortDelta,
+            _sizeDelta,
             _acceptPrice
         );
-
+        
         key_ = bytes32(uint256(uint160(address(mimGmxPosition))));
+        result_ = abi.encode(
+            _collateralToken,
+            _indexToken,
+            _isLong,
+            _collateralAmount,
+            _sizeDelta
+        ); 
     }
 
     function closePosition(address _account, bytes calldata _args)

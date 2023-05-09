@@ -79,8 +79,10 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         return liquidities[_positionId];
     }
 
-    function convertToOpenOpenArgs(bytes memory _args) internal returns (UniV3OpenArgs memory) {
-
+    function convertToOpenOpenArgs(bytes memory _args) 
+        internal pure 
+        returns (UniV3OpenArgs memory) 
+    {
         (   int24 tickLower, 
             int24 tickUpper,
             uint24 feeTier, 
@@ -144,10 +146,10 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
 
         result_ = abi.encode(
             liquidity,
-            amount0,
-            amount1,
+            token0,
+            token1,
             uniV3Args.feeTier
-        ); 
+        );
 
         unCollectedFee(key_);
     }

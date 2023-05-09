@@ -83,7 +83,7 @@ contract DerivioFuture is ReentrancyGuard {
         gmxArg.funds[0].amount = _collateralAmount;
     }
 
-    function closeFuture(address _account, CloseArgs memory _args) 
+    function closeFuture(address _account, CloseArgs memory _args)
         external payable nonReentrant 
         returns (DerivioPositionManager.ProtocolCloseResult[] memory)
     {

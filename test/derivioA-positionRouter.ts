@@ -20,7 +20,7 @@ import { setupContracts } from "../src/setupContracts";
 import { fundErc20 } from "../src/fundErc20";
 import { setPricesWithBitsAndExecute, getBlockTime } from "../src/executeGmxPosition";
 import { getPriceBits } from "../src/utilities";
-import { BytesLike, ContractReceipt } from "ethers";
+import { BigNumber, BytesLike, ContractReceipt } from "ethers";
 import { inspect } from 'util';
 
 type Position = ReturnType<DerivioPositionManager["getAllPositions"]> extends Promise<Array<infer T>> ? T : never;
@@ -37,10 +37,10 @@ type ProtocolOpenResults = ReturnType<IPositionRouter["openDerivioFuturePosition
 
 // type Fund = ReturnType<GmxManager["feesOf"]> extends Promise<Array<infer T>> ? T : never; 
 
-// interface Position {
-//   positionKey: string;
-//   aggregateInfos: BaseAggregateInfo[];
-// }
+interface PositionParse {
+  positionKey: string;
+  aggregateInfos: BaseAggregateInfo[];
+}
 
 // interface ProtocolOpenResult {
 //   manager: string;
@@ -54,7 +54,9 @@ type ProtocolOpenResults = ReturnType<IPositionRouter["openDerivioFuturePosition
 // }
 
 interface BaseAggregateInfo {
-  openResult: ProtocolOpenResult;
+  manager: String;
+  key: String;
+  openInfos: OpenInfo;
 }
 
 interface GmxManagerAggregateInfo extends BaseAggregateInfo {
@@ -65,16 +67,33 @@ interface UniV3ManagerAggregateInfo extends BaseAggregateInfo {
   fees: Fund[];
 }
 
+interface OpenInfo {}
+
+interface UniV3OpenInfo extends OpenInfo {
+  liquidity: String;
+  token0: String;
+  token1: String;
+  feeTier: String;
+}
+
+interface GmxOpenInfo extends OpenInfo {
+  collateralToken: String;
+  indexToken: String;
+  isLong: boolean;
+  collateralAmount: String;
+  sizeDelta: String;
+}
+
 interface GmxManagerInfo {
   isLong: boolean;
-  sizeDelta: BigInt;
-  collateral: BigInt;
-  averagePrice: BigInt;
-  entryFundingRate: BigInt;
-  reserveAmount: BigInt;
-  realisedPnl: BigInt;
+  sizeDelta: String;
+  collateral: String;
+  averagePrice: String;
+  entryFundingRate: String;
+  reserveAmount: String;
+  realisedPnl: String;
   realisedPnLPositive: boolean;
-  lastIncreasedTime: BigInt;
+  lastIncreasedTime: String;
 }
 
 interface UniV3ManagerInfo {
@@ -126,7 +145,7 @@ describe("DerivioA test", function () {
         amount0Desired: await weth.balanceOf(owner.address),
         amount1Desired: await usdc.balanceOf(owner.address),
         shortLeverage: shortLeverage,
-        swapMaxSlippage: 0,
+        swapSqrtPriceLimitX96: 0,
         shortMaxSlippage: 0,
       }],
       weth.address,
@@ -176,16 +195,41 @@ describe("DerivioA test", function () {
     return await positionRouter.closeDerivioA(closeArgsList, token0Address, token1Address, { value: valueInput });
   }
 
-  async function getPositionsInfos(derivioPositionManager: any, accAddr: string): Promise<BaseAggregateInfo[]> {
+  async function getPositionsInfos(derivioPositionManager: any, accAddr: string): Promise<PositionParse[]> {
 
     const positions: Position[]  = await derivioPositionManager.getAllPositions(accAddr);
+    console.log(positions);
 
-    const aggregateInfoList: BaseAggregateInfo[] = [];
+    const posList: PositionParse[] = [];
     positions.forEach((position) => {
+
+      const pos: PositionParse = {
+        positionKey: position.positionKey,
+        aggregateInfos: [],
+      }
+      
       // Iterate through the aggregateInfos within each position
       position.aggregateInfos.forEach((aggregateInfo) => {
         // Check the contract address and parse the feesOf and infoOf accordingly
         if (aggregateInfo.openResult.manager === contracts.gmxManager.address) {
+
+          const decodedOpenValues = ethers.utils.defaultAbiCoder.decode(
+            [
+              'address', // _collateralToken
+              'address', // _indexToken
+              'bool',    // _isLong
+              'uint256', // _collateralAmount
+              'uint256'  // _shortDelta
+            ],
+            aggregateInfo.openResult.infos
+          );
+          const gmxOpenInfo: GmxOpenInfo = {
+            collateralToken: decodedOpenValues[0],
+            indexToken: decodedOpenValues[1],
+            isLong: decodedOpenValues[2],
+            collateralAmount: decodedOpenValues[3].toString(),
+            sizeDelta: decodedOpenValues[4].toString()
+          };
 
           const decodedValues = ethers.utils.defaultAbiCoder.decode(
             [
@@ -194,46 +238,67 @@ describe("DerivioA test", function () {
             ],
             aggregateInfo.currentInfos
           );
-          
           const gmxManagerInfo: GmxManagerInfo = {
             isLong: decodedValues[0],
-            sizeDelta: decodedValues[1],
-            collateral: decodedValues[2],
-            averagePrice: decodedValues[3],
-            entryFundingRate: decodedValues[4],
-            reserveAmount: decodedValues[5],
-            realisedPnl: decodedValues[6],
+            sizeDelta: decodedValues[1].toString(),
+            collateral: decodedValues[2].toString(),
+            averagePrice: decodedValues[3].toString(),
+            entryFundingRate: decodedValues[4].toString(),
+            reserveAmount: decodedValues[5].toString(),
+            realisedPnl: decodedValues[6].toString(),
             realisedPnLPositive: decodedValues[7],
-            lastIncreasedTime: decodedValues[8]
+            lastIncreasedTime: decodedValues[8].toString()
           };
 
           const gmxManagerAggregateInfo: GmxManagerAggregateInfo = {
-            openResult: aggregateInfo.openResult,
+            manager: "Gmx Manager",
+            key: aggregateInfo.openResult.key,
+            openInfos: gmxOpenInfo,
             currentInfos: gmxManagerInfo,
           };
-  
-          aggregateInfoList.push(gmxManagerAggregateInfo);
+
+          pos.aggregateInfos.push(gmxManagerAggregateInfo);
           
         } else if (aggregateInfo.openResult.manager === contracts.uniV3Manager.address) {
 
+          const decodedOpenValues = ethers.utils.defaultAbiCoder.decode(
+            [
+              'uint256', // liquidity
+              'address', // token0
+              'address', // token1
+              'uint256', // feeTier
+            ],
+            aggregateInfo.openResult.infos
+          );
+          const uniV3OpenInfo: UniV3OpenInfo = {
+            liquidity: decodedOpenValues[0].toString(),
+            token0: decodedOpenValues[1],
+            token1: decodedOpenValues[2],
+            feeTier: decodedOpenValues[3].toString(),
+          };
+
           const fees = aggregateInfo.fees.map((fee) => {
             return {
-              token: fee[0],
-              amount: fee[1],
+              token: fee[0].toString(),
+              amount: fee[1].toString(),
             };
           });
-  
+
           const uniV3ManagerAggregateInfo = {
-            openResult: aggregateInfo.openResult,
+            manager: "Uniswap V3 Manager",
+            key: aggregateInfo.openResult.key,
+            openInfos: uniV3OpenInfo,
             fees: fees,
           };
-  
-          aggregateInfoList.push(uniV3ManagerAggregateInfo);
+
+          pos.aggregateInfos.push(uniV3ManagerAggregateInfo);
         }
       });
+
+      posList.push(pos);
     });
-  
-    return aggregateInfoList;
+
+    return posList;
   }
 
   // Reuse the same setup in every test.
@@ -531,7 +596,7 @@ describe("DerivioA test", function () {
           amount0Desired: 0,
           amount1Desired: ethers.utils.parseUnits("500", 6),
           shortLeverage: 0,
-          swapMaxSlippage: 0,
+          swapSqrtPriceLimitX96: 0,
           shortMaxSlippage: 0,
         },
         {
@@ -543,7 +608,7 @@ describe("DerivioA test", function () {
           amount0Desired: 0,
           amount1Desired: ethers.utils.parseUnits("500", 6),
           shortLeverage: 1e6,
-          swapMaxSlippage: 0,
+          swapSqrtPriceLimitX96: 0,
           shortMaxSlippage: 0,
         }],
         weth.address,
@@ -555,7 +620,11 @@ describe("DerivioA test", function () {
       await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
       await gmxPositionRouter.connect(positionKeeper).executeDecreasePositions(999999999, addresses.GMXFastPriceFeed);
       
-      console.log('positionsInfos:', await getPositionsInfos(derivioPositionManager, owner.address));
+      console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
+    });
+
+    it("#13 Slippage control of the swap", async function () {
+      
     });
 
 

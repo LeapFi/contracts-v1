@@ -216,10 +216,10 @@ contract DerivioPositionManager is ReentrancyGuard {
         }
     }
 
-    function getNextPositionKey(address _recipient)
+    function getNextPositionKey(address _account)
         private
         returns (bytes32)
     {
-        return keccak256(abi.encodePacked(_recipient, nextId[_recipient]++));
+        return keccak256(abi.encodePacked(_account, nextId[_account]++));
     }
 }
