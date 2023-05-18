@@ -198,24 +198,22 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
     function updateUniPosition(bytes32 _key) 
         private 
     {
-        UniV3Position storage userLiquidity = liquidities[_key];
-        bytes32 uniKey = keccak256(abi.encodePacked(address(this), userLiquidity.tickLower, userLiquidity.tickUpper));
+        UniV3Position storage accountLiquidity = liquidities[_key];
+        bytes32 uniKey = keccak256(abi.encodePacked(address(this), accountLiquidity.tickLower, accountLiquidity.tickUpper));
         (
             ,
             ,
             ,
-            userLiquidity.feeGrowthData.feeGrowthInside0X128,
-            userLiquidity.feeGrowthData.feeGrowthInside1X128
+            accountLiquidity.feeGrowthData.feeGrowthInside0X128,
+            accountLiquidity.feeGrowthData.feeGrowthInside1X128
         ) =
-            IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), userLiquidity.feeTier)).positions(uniKey);
+            IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), accountLiquidity.feeTier)).positions(uniKey);
 
-
-        (, int24 tickCurrent, , , , , ) = userLiquidity.pool.slot0();
         (
-            userLiquidity.feeGrowthData.feeGrowthInside0X128, 
-            userLiquidity.feeGrowthData.feeGrowthInside1X128
+            accountLiquidity.feeGrowthData.feeGrowthInside0X128, 
+            accountLiquidity.feeGrowthData.feeGrowthInside1X128
         ) =
-            getFeeGrowthInside(userLiquidity.tickLower, userLiquidity.tickUpper, tickCurrent, userLiquidity.pool.feeGrowthGlobal0X128(), userLiquidity.pool.feeGrowthGlobal1X128());
+            getFeeGrowthInside(accountLiquidity.tickLower, accountLiquidity.tickUpper, accountLiquidity.pool);
     }
 
     function closePosition(address _account, bytes calldata _args) 
@@ -228,11 +226,11 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         // Verify position exists (assuming the modifier was a function)
         require(liquidities[_key].account == _account, "Position does not exist");
         
-        UniV3Position memory userLiquidity = positionOf(_key);
+        UniV3Position memory accountLiquidity = positionOf(_key);
 
         (uint128 fee0, uint128 fee1) = unCollectedFee(_key);
-        (uint256 owed0, uint256 owed1) = userLiquidity.pool.burn(userLiquidity.tickLower, userLiquidity.tickUpper, userLiquidity.liquidity);
-        (uint256 amount0, uint256 amount1) = userLiquidity.pool.collect(address(this), userLiquidity.tickLower, userLiquidity.tickUpper, uint128(owed0 + fee0), uint128(owed1 + fee1));
+        (uint256 owed0, uint256 owed1) = accountLiquidity.pool.burn(accountLiquidity.tickLower, accountLiquidity.tickUpper, accountLiquidity.liquidity);
+        (uint256 amount0, uint256 amount1) = accountLiquidity.pool.collect(address(this), accountLiquidity.tickLower, accountLiquidity.tickUpper, uint128(owed0 + fee0), uint128(owed1 + fee1));
 
         removeKey(_account, _key);
 
@@ -260,8 +258,6 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
                 // Remove the ComposedLiquidity from the mapping
                 delete liquidities[_key];
 
-                updateUniPosition(_key);
-
                 // The element has been removed, no need to continue the loop
                 return;
             }
@@ -273,26 +269,26 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         view 
         returns (uint128 fee0, uint128 fee1) 
     {
-        UniV3Position memory userLiquidity = positionOf(_key);
-
-        IUniswapV3Pool pool = userLiquidity.pool;
-        (, int24 tickCurrent, , , , , ) = pool.slot0();
+        UniV3Position memory accountLiquidity = positionOf(_key);
 
         (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
-            getFeeGrowthInside(userLiquidity.tickLower, userLiquidity.tickUpper, tickCurrent, pool.feeGrowthGlobal0X128(), pool.feeGrowthGlobal1X128());
+            getFeeGrowthInside(accountLiquidity.tickLower, accountLiquidity.tickUpper, accountLiquidity.pool);
 
-        fee0 = uint128(FullMath.mulDiv(userLiquidity.liquidity, feeGrowthInside0X128 - userLiquidity.feeGrowthData.feeGrowthInside0X128, FixedPoint128_Q128));
-        fee1 = uint128(FullMath.mulDiv(userLiquidity.liquidity, feeGrowthInside1X128 - userLiquidity.feeGrowthData.feeGrowthInside1X128, FixedPoint128_Q128));
+        fee0 = uint128(FullMath.mulDiv(accountLiquidity.liquidity, feeGrowthInside0X128 - accountLiquidity.feeGrowthData.feeGrowthInside0X128, FixedPoint128_Q128));
+        fee1 = uint128(FullMath.mulDiv(accountLiquidity.liquidity, feeGrowthInside1X128 - accountLiquidity.feeGrowthData.feeGrowthInside1X128, FixedPoint128_Q128));
     }
 
     function getFeeGrowthInside(
         int24 tickLower,
         int24 tickUpper,
-        int24 tickCurrent,
-        uint256 feeGrowthGlobal0X128,
-        uint256 feeGrowthGlobal1X128
+        IUniswapV3Pool pool
     ) internal view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
         
+        (, int24 tickCurrent, , , , , ) = pool.slot0();
+
+        uint256 feeGrowthGlobal0X128 = pool.feeGrowthGlobal0X128();
+        uint256 feeGrowthGlobal1X128 = pool.feeGrowthGlobal1X128();
+
         (, , uint256 feeGrowthOutside0Lower, uint256 feeGrowthOutside1Lower, , , ,) = pool.ticks(tickLower);
         (, , uint256 feeGrowthOutside0Upper, uint256 feeGrowthOutside1Upper, , , ,) = pool.ticks(tickUpper);
 
@@ -348,10 +344,10 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         console.log('collectAllFees...............');
         (uint128 fee0, uint128 fee1) = unCollectedFee(_key);
         if (fee0 > 0 || fee1 > 0) {
-            UniV3Position memory userLiquidity = positionOf(_key);
+            UniV3Position memory accountLiquidity = positionOf(_key);
 
-            userLiquidity.pool.burn(userLiquidity.tickLower, userLiquidity.tickUpper, 0);
-            (uint128 amount0, uint128 amount1) = userLiquidity.pool.collect(address(this), userLiquidity.tickLower, userLiquidity.tickUpper, fee0, fee1);
+            accountLiquidity.pool.burn(accountLiquidity.tickLower, accountLiquidity.tickUpper, 0);
+            (uint128 amount0, uint128 amount1) = accountLiquidity.pool.collect(address(this), accountLiquidity.tickLower, accountLiquidity.tickUpper, fee0, fee1);
 
             console.log('fee0:', fee0);
             console.log('fee1:', fee1);
