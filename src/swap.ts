@@ -1,4 +1,5 @@
 import { ethers } from "hardhat";
+import { getBlockTime } from "./executeGmxPosition";
 
 export async function swap(
   swapRouter: any, 
@@ -9,15 +10,17 @@ export async function swap(
   amount: number, 
   decimals: number
   ): Promise<void> {
+  
+  const amountIn = ethers.utils.parseUnits(String(amount), decimals);
+  await tokenIn.approve(swapRouter.address, amountIn);
 
-  await tokenIn.approve(swapRouter.address, ethers.utils.parseUnits(String(amount), decimals));
   await swapRouter.exactInputSingle({
     tokenIn: tokenIn.address,
     tokenOut: tokenOut.address,
     fee: feeTier,
     recipient: owner.address,
     deadline: ethers.constants.MaxUint256,
-    amountIn: ethers.utils.parseUnits(String(amount), decimals),
+    amountIn: amountIn,
     amountOutMinimum: ethers.constants.Zero,
     sqrtPriceLimitX96: 0,
   });

@@ -50,6 +50,12 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         IUniswapV3Pool pool;
         uint128 liquidity;
         uint160 entryPriice;
+        FeeGrowthData feeGrowthData;
+    }
+
+    struct FeeGrowthData {
+        uint256 feeGrowthInside0X128;
+        uint256 feeGrowthInside1X128;
     }
 
     modifier verifyPositionExists(address _account, bytes32 _key) {
@@ -105,53 +111,40 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         external payable override 
         returns (bytes32 key_, bytes memory result_) 
     {
-        UniV3OpenArgs memory uniV3Args = convertToOpenOpenArgs(_args);
+        UniV3OpenArgs memory openArgs = convertToOpenOpenArgs(_args);
+        require(openArgs.liquidityDesired > 0, "liquidity = 0");
 
         pool = IUniswapV3Pool(
                     uniFactory.getPool(
                         address(token0),
                         address(token1),
-                        uniV3Args.feeTier
+                        openArgs.feeTier
                     ));
-        console.log('v3Pool:', address(pool));
-        console.log('liquidityDesired:', uniV3Args.liquidityDesired);
-        console.log('amount0:', uniV3Args.amount0Desired);
-        console.log('amount1:', uniV3Args.amount1Desired);
-        
         (uint160 sqrtPriceX96, , , , , , ) = pool.slot0();
-        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
-                sqrtPriceX96,
-                TickMath.getSqrtRatioAtTick(uniV3Args.tickLower),
-                TickMath.getSqrtRatioAtTick(uniV3Args.tickUpper),
-                uniV3Args.amount0Desired,
-                uniV3Args.amount1Desired
-            );
 
-        console.log('liquidity:', liquidity);
-        console.log('sqrtPriceX96:', sqrtPriceX96);
         minting = true;
-        (uint256 amount0Minted, uint256 amount1Minted) = pool.mint(address(this), uniV3Args.tickLower, uniV3Args.tickUpper, liquidity, abi.encode(address(this)));
+        (uint256 amount0Minted, uint256 amount1Minted) = pool.mint(address(this), openArgs.tickLower, openArgs.tickUpper, openArgs.liquidityDesired, abi.encode(address(this)));
 
-        console.log('amount0:', uniV3Args.amount0Desired);
-        console.log('amount1:', uniV3Args.amount1Desired);
+        console.log('v3Pool:', address(pool));
+        console.log('liquidityDesired:', openArgs.liquidityDesired);
+        console.log('amount0:', openArgs.amount0Desired);
+        console.log('amount1:', openArgs.amount1Desired);
         console.log('amount0Minted:', amount0Minted);
         console.log('amount1Minted:', amount1Minted);
         console.log('_account:', _account);
         
-        uint256 amount0 = uniV3Args.amount0Desired - amount0Minted;
-        uint256 amount1 = uniV3Args.amount1Desired - amount1Minted;
+        uint256 amount0 = openArgs.amount0Desired - amount0Minted;
+        uint256 amount1 = openArgs.amount1Desired - amount1Minted;
 
-        key_ = addPositionInfo(_account, uniV3Args.tickLower, uniV3Args.tickUpper, uniV3Args.feeTier, pool, liquidity, sqrtPriceX96);
+        key_ = addPositionInfo(_account, openArgs.tickLower, openArgs.tickUpper, openArgs.feeTier, pool, openArgs.liquidityDesired, sqrtPriceX96);
         returnFund(_account, constructFund(amount0, amount1));
 
         result_ = abi.encode(
-            liquidity,
+            openArgs.liquidityDesired,
             token0,
             token1,
-            uniV3Args.feeTier
+            openArgs.feeTier
         );
-
-        unCollectedFee(key_);
     }
 
     /// @notice Callback function of uniswapV3Pool mint
@@ -198,6 +191,31 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
 
         positionIds[_account].push(key);
         liquidities[key] = uniV3Position;
+
+        updateUniPosition(key);
+    }
+
+    function updateUniPosition(bytes32 _key) 
+        private 
+    {
+        UniV3Position storage userLiquidity = liquidities[_key];
+        bytes32 uniKey = keccak256(abi.encodePacked(address(this), userLiquidity.tickLower, userLiquidity.tickUpper));
+        (
+            ,
+            ,
+            ,
+            userLiquidity.feeGrowthData.feeGrowthInside0X128,
+            userLiquidity.feeGrowthData.feeGrowthInside1X128
+        ) =
+            IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), userLiquidity.feeTier)).positions(uniKey);
+
+
+        (, int24 tickCurrent, , , , , ) = userLiquidity.pool.slot0();
+        (
+            userLiquidity.feeGrowthData.feeGrowthInside0X128, 
+            userLiquidity.feeGrowthData.feeGrowthInside1X128
+        ) =
+            getFeeGrowthInside(userLiquidity.tickLower, userLiquidity.tickUpper, tickCurrent, userLiquidity.pool.feeGrowthGlobal0X128(), userLiquidity.pool.feeGrowthGlobal1X128());
     }
 
     function closePosition(address _account, bytes calldata _args) 
@@ -242,41 +260,66 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
                 // Remove the ComposedLiquidity from the mapping
                 delete liquidities[_key];
 
+                updateUniPosition(_key);
+
                 // The element has been removed, no need to continue the loop
                 return;
             }
         }
     }
-    
-    function collectAllFees(address _recipient, bytes32 _key) 
-        external 
-        returns (uint256 amount0, uint256 amount1) 
-    {
-        (uint128 fee0, uint128 fee1) = unCollectedFee(_key);
-        if (fee0 > 0 || fee1 > 0) {
-            UniV3Position memory userLiquidity = positionOf(_key);
-            (amount0, amount1) = userLiquidity.pool.collect(address(this), userLiquidity.tickLower, userLiquidity.tickUpper, fee0, fee1);
-        }
-
-        returnFund(_recipient, constructFund(amount0, amount1));
-    }
 
     function unCollectedFee(bytes32 _key) 
-        public view 
-        returns (uint128 fee0_, uint128 fee1_) 
+        public 
+        view 
+        returns (uint128 fee0, uint128 fee1) 
     {
         UniV3Position memory userLiquidity = positionOf(_key);
 
-        uint128 liquidity;
-        bytes32 uniKey = keccak256(abi.encodePacked(address(this), userLiquidity.tickLower, userLiquidity.tickUpper));
-        (liquidity, , , fee0_, fee1_) = userLiquidity.pool.positions(uniKey);
+        IUniswapV3Pool pool = userLiquidity.pool;
+        (, int24 tickCurrent, , , , , ) = pool.slot0();
 
-        fee0_ = uint128(FullMath.mulDiv(fee0_, userLiquidity.liquidity, liquidity));
-        fee1_ = uint128(FullMath.mulDiv(fee1_, userLiquidity.liquidity, liquidity));
+        (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
+            getFeeGrowthInside(userLiquidity.tickLower, userLiquidity.tickUpper, tickCurrent, pool.feeGrowthGlobal0X128(), pool.feeGrowthGlobal1X128());
 
-        console.log("unCollectedFee.....");
-        console.log("fee0: ", fee0_);
-        console.log("fee1: ", fee1_);
+        fee0 = uint128(FullMath.mulDiv(userLiquidity.liquidity, feeGrowthInside0X128 - userLiquidity.feeGrowthData.feeGrowthInside0X128, FixedPoint128_Q128));
+        fee1 = uint128(FullMath.mulDiv(userLiquidity.liquidity, feeGrowthInside1X128 - userLiquidity.feeGrowthData.feeGrowthInside1X128, FixedPoint128_Q128));
+    }
+
+    function getFeeGrowthInside(
+        int24 tickLower,
+        int24 tickUpper,
+        int24 tickCurrent,
+        uint256 feeGrowthGlobal0X128,
+        uint256 feeGrowthGlobal1X128
+    ) internal view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
+        
+        (, , uint256 feeGrowthOutside0Lower, uint256 feeGrowthOutside1Lower, , , ,) = pool.ticks(tickLower);
+        (, , uint256 feeGrowthOutside0Upper, uint256 feeGrowthOutside1Upper, , , ,) = pool.ticks(tickUpper);
+
+        // calculate fee growth below
+        uint256 feeGrowthBelow0X128;
+        uint256 feeGrowthBelow1X128;
+        if (tickCurrent >= tickLower) {
+            feeGrowthBelow0X128 = feeGrowthOutside0Lower;
+            feeGrowthBelow1X128 = feeGrowthOutside1Lower;
+        } else {
+            feeGrowthBelow0X128 = feeGrowthGlobal0X128 - feeGrowthOutside0Lower;
+            feeGrowthBelow1X128 = feeGrowthGlobal1X128 - feeGrowthOutside1Lower;
+        }
+
+        // calculate fee growth above
+        uint256 feeGrowthAbove0X128;
+        uint256 feeGrowthAbove1X128;
+        if (tickCurrent < tickUpper) {
+            feeGrowthAbove0X128 = feeGrowthOutside0Upper;
+            feeGrowthAbove1X128 = feeGrowthOutside1Upper;
+        } else {
+            feeGrowthAbove0X128 = feeGrowthGlobal0X128 - feeGrowthOutside0Upper;
+            feeGrowthAbove1X128 = feeGrowthGlobal1X128 - feeGrowthOutside1Upper;
+        }
+
+        feeGrowthInside0X128 = feeGrowthGlobal0X128 + feeGrowthBelow0X128 - feeGrowthAbove0X128;
+        feeGrowthInside1X128 = feeGrowthGlobal1X128 + feeGrowthBelow1X128 - feeGrowthAbove1X128;
     }
 
     function constructFund(uint256 _amount0, uint256 _amount1) internal view returns (Fund[] memory fund_)
@@ -299,13 +342,23 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
     function infoOf(bytes32 _key) external view override returns (bytes memory info_) {
     }
 
-    function claimFees(address _account, bytes32 _key) external 
+    function claimFees(address _account, bytes32 _key) 
+        external 
     {
+        console.log('collectAllFees...............');
         (uint128 fee0, uint128 fee1) = unCollectedFee(_key);
         if (fee0 > 0 || fee1 > 0) {
             UniV3Position memory userLiquidity = positionOf(_key);
-            (uint256 amount0, uint256 amount1) = userLiquidity.pool.collect(address(this), userLiquidity.tickLower, userLiquidity.tickUpper, fee0, fee1);
 
+            userLiquidity.pool.burn(userLiquidity.tickLower, userLiquidity.tickUpper, 0);
+            (uint128 amount0, uint128 amount1) = userLiquidity.pool.collect(address(this), userLiquidity.tickLower, userLiquidity.tickUpper, fee0, fee1);
+
+            console.log('fee0:', fee0);
+            console.log('fee1:', fee1);
+            console.log('amount0:', amount0);
+            console.log('amount1:', amount1);
+            
+            updateUniPosition(_key);
             returnFund(_account, constructFund(amount0, amount1));
         }
     }

@@ -147,6 +147,6 @@ contract UniHelper {
     }
 
     function sqrtPriceX96ToPrice(uint160 sqrtPriceX96) public pure returns (uint256) {
-        return sqrtPriceX96 * sqrtPriceX96 / 2 ** 192;
+        return uint256(sqrtPriceX96) * uint256(sqrtPriceX96) / 2 ** 192;
     }
 }

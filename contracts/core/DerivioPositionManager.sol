@@ -33,6 +33,7 @@ contract DerivioPositionManager is ReentrancyGuard {
 
     struct ProtocolOpenResult {
         IProtocolPositionManager manager;
+        uint256 blockNumber;
         bytes32 key;
         bytes infos;
     }
@@ -85,6 +86,7 @@ contract DerivioPositionManager is ReentrancyGuard {
 
             result_[i] = ProtocolOpenResult({
                 manager: _args[i].manager,
+                blockNumber: block.number,
                 key: key,
                 infos: infos
             });

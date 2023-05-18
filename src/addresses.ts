@@ -12,6 +12,7 @@ export interface Addresses {
   USDC: string;
   USDCWhale: string;
   LeapPositionRouter: string;
+  DerivioPositionManager: string;
 }
 
 export const getAddresses = (network: string): Addresses => {
@@ -29,7 +30,8 @@ export const getAddresses = (network: string): Addresses => {
         WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
         USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
         USDCWhale: "0x905dfcd5649217c42684f23958568e533c711aa3",
-        LeapPositionRouter: "0xd249e8961A2fEf9F95C0Ca90d32398bafd6c0C62",
+        LeapPositionRouter: "",
+        DerivioPositionManager: "",
       };
     case "arbitrumForked":
       return {
@@ -44,7 +46,8 @@ export const getAddresses = (network: string): Addresses => {
         WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
         USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
         USDCWhale: "0x905dfcd5649217c42684f23958568e533c711aa3",
-        LeapPositionRouter: "0xd249e8961A2fEf9F95C0Ca90d32398bafd6c0C62",
+        LeapPositionRouter: "0xFF560c590b454f5774F6D8E706039B1290a889e5",
+        DerivioPositionManager: "0xD005270e3786A6469Be46d014A0dA043337cae8c",
       };
     case "arbitrum":
       return {
@@ -60,6 +63,7 @@ export const getAddresses = (network: string): Addresses => {
         USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
         USDCWhale: "",
         LeapPositionRouter: "",
+        DerivioPositionManager: "",
       };
     default:
       throw new Error(`No addresses for Network: ${network}`);

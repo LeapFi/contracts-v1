@@ -7,34 +7,35 @@ import {
   IUniswapV3Pool,
   IPositionRouter,
 } from "../../typechain";
+import { getPositionsInfos, closeAllPositions } from "../../src/position";
 
 // Helper function to wait for a certain amount of time
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForGmxPosition(positionRouter: IPositionRouter, wethAddress: string, usdcAddress: string): Promise<void> {
-  let sizeDelta = ethers.BigNumber.from(0);
-  let collateral = ethers.BigNumber.from(0);
+// async function waitForGmxPosition(positionRouter: IPositionRouter, wethAddress: string, usdcAddress: string): Promise<void> {
+//   let sizeDelta = ethers.BigNumber.from(0);
+//   let collateral = ethers.BigNumber.from(0);
 
-  while (sizeDelta.isZero() && collateral.isZero()) {
-    console.log("Waiting for GMX position...");
+//   while (sizeDelta.isZero() && collateral.isZero()) {
+//     console.log("Waiting for GMX position...");
 
-    await positionRouter.getGmxPosition(wethAddress, usdcAddress);
+//     await positionRouter.getGmxPosition(wethAddress, usdcAddress);
 
-    const result = await positionRouter.callStatic.getGmxPosition(wethAddress, usdcAddress);
+//     const result = await positionRouter.callStatic.getGmxPosition(wethAddress, usdcAddress);
     
-    console.log("sizeDelta: ", result.sizeDelta, "    collateral: ", result.collateral);
-    sizeDelta = result.sizeDelta;
-    collateral = result.collateral;
+//     console.log("sizeDelta: ", result.sizeDelta, "    collateral: ", result.collateral);
+//     sizeDelta = result.sizeDelta;
+//     collateral = result.collateral;
 
-    if (sizeDelta.isZero() && collateral.isZero()) {
-      await delay(10000); // Wait for 10 seconds
-    }
-  }
+//     if (sizeDelta.isZero() && collateral.isZero()) {
+//       await delay(10000); // Wait for 10 seconds
+//     }
+//   }
 
-  console.log("GMX position created");
-}
+//   console.log("GMX position created");
+// }
 
 async function main(): Promise<void> {
   const feeTier = 500;
@@ -48,6 +49,7 @@ async function main(): Promise<void> {
   const weth = (await ethers.getContractAt("IERC20", addresses.WETH)) as IERC20;
   const usdc = (await ethers.getContractAt("IERC20", addresses.USDC)) as IERC20;
   const positionRouter = (await ethers.getContractAt("IPositionRouter", addresses.LeapPositionRouter)) as IPositionRouter;
+  const derivioPositionManager = await ethers.getContractAt("DerivioPositionManager", addresses.DerivioPositionManager) as DerivioPositionManager;
 
   const { tick: currentTick } = await uniswapV3Pool.slot0();
   const tickSpacing = await uniswapV3Pool.tickSpacing();
@@ -58,34 +60,34 @@ async function main(): Promise<void> {
   await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
   await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
 
+  const valueInput = ethers.utils.parseUnits("0.0001", 18);
+  
   // Open DerivioAL
-  const positionParams = {
+  const positionParams = [{
     recipient: userAddr,
+    value: valueInput,
     tickLower: lowerTick,
     tickUpper: upperTick,
     feeTier: feeTier,
     amount0Desired: 0,
     amount1Desired: ethers.utils.parseUnits("100", 6),
-    shortLeverage: 500000,
-    swapMaxSlippage: 0,
-    shortMaxSlippage: 0,
-  };
-  await positionRouter.openDerivioA(positionParams, weth.address, usdc.address, { value: ethers.utils.parseUnits("0.02", 18) });
-
-  await waitForGmxPosition(positionRouter, weth.address, usdc.address);
+    shortLeverage: 2e6,
+    swapSqrtPriceLimitX96: 0,
+    shortPriceLimit: 0,
+  }];
+  await positionRouter.openDerivioAPositions(positionParams, weth.address, usdc.address, { value: valueInput });
+  // await delay(30000);
+  
+  // await waitForGmxPosition(positionRouter, weth.address, usdc.address);
 
   // Get all positions in user
-  const positions = await positionRouter.positionsOf(userAddr);
+  // console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
 
   // Close all positions in user
-  const positionKeysArray = positions.map((position) => position.positionKey);
-  await positionRouter.closeDerivioA(positionKeysArray, weth.address, usdc.address, { value: ethers.utils.parseUnits("0.0001", 18) });
+  // await closeAllPositions(positionRouter, derivioPositionManager, owner.address, weth.address, usdc.address);
 
-  const newPositions = await positionRouter.positionsOf(userAddr);
-
-  console.log("weth:", await weth.balanceOf(userAddr), "usdc:", await usdc.balanceOf(userAddr));
-  console.log(positions);
-  console.log(newPositions);
+  // console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
+  // console.log("weth:", await weth.balanceOf(userAddr), "usdc:", await usdc.balanceOf(userAddr));
 }
 
 main()

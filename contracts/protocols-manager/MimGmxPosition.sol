@@ -20,6 +20,9 @@ contract MimGmxPosition is ReentrancyGuard {
     bool isLong;
     uint256 private constant gmxDecimals = 30;
 
+    bool isOpenSuccess;
+    bool isCloseSuccess;
+
     IGmxPositionRouter private immutable gmxPositionRouter;
     IGmxRouter private immutable gmxRouter;
     IGmxVault private immutable gmxVault;
@@ -61,7 +64,9 @@ contract MimGmxPosition is ReentrancyGuard {
     function openGmxPosition(uint256 _collateralAmount, uint256 _sizeDelta, uint256 _acceptPrice) 
         external payable
     {
+        console.log("collateral balance before:", IERC20(collateralToken).balanceOf(address(this)));
         IERC20(collateralToken).approve(address(gmxRouter), _collateralAmount);
+
         bytes32 referralCode = 0;
         uint256 executionFee = msg.value;
         
@@ -77,19 +82,6 @@ contract MimGmxPosition is ReentrancyGuard {
         console.log('_acceptPrice', _acceptPrice);
         console.logBytes32(referralCode);
 
-        // Log the input values
-        console.log("Input _collateralAmount:", _collateralAmount);
-        console.log("Input _sizeDelta:", _sizeDelta);
-        console.log("Input _acceptPrice:", _acceptPrice);
-
-
-        // console.log('indexToken:', indexToken);
-        // console.log('_collateralAmount:', _collateralAmount);
-        // console.log('_sizeDelta:', _sizeDelta);
-        // console.log('isLong:', isLong);
-        // console.log('_acceptPrice:', _acceptPrice);
-        // console.log("collateral balance before:", IERC20(collateralToken).balanceOf(address(this)));
-
         gmxPositionRouter.createIncreasePosition{ value: executionFee }(
             path, 
             indexToken, 
@@ -102,10 +94,9 @@ contract MimGmxPosition is ReentrancyGuard {
             referralCode,
             address(this)
         );
-
+        
         console.log("collateral balance after:", IERC20(collateralToken).balanceOf(address(this)));
-        // Add this line
-        // getGmxPosition();
+        getGmxPosition();
     }
 
     function closeGmxPosition(address _recipient, uint256 _minOut, uint256 _acceptablePrice) 
@@ -142,12 +133,27 @@ contract MimGmxPosition is ReentrancyGuard {
 
     function gmxPositionCallback(bytes32 _positionKey, bool _isExecuted, bool _isIncrease) external 
     {
+        if (_isIncrease && _isExecuted) {
+            isOpenSuccess = true;
+        }
+        else if (!_isIncrease && _isExecuted) {
+            isCloseSuccess = true;
+        }
+
         if (!_isIncrease) {
             
             uint256 collateralAmount = IERC20(collateralToken).balanceOf(address(this));
             IERC20(collateralToken).safeTransfer(account, collateralAmount);
             console.log("collateralAmount: %s", collateralAmount);
         }
+
+        if (!_isExecuted) {
+            
+            // console.log("returning collateral amount..........");
+            // uint256 collateralAmount = IERC20(collateralToken).balanceOf(address(this));
+            // IERC20(collateralToken).safeTransfer(account, collateralAmount);
+        }
+
         console.logBytes32(_positionKey);
         console.log("isExecuted: %s", _isExecuted);
         console.log("isIncrease: %s", _isIncrease);
@@ -174,6 +180,6 @@ contract MimGmxPosition is ReentrancyGuard {
         console.log("collateral amount: ", IERC20(collateralToken).balanceOf(address(this)));
         console.log("index amount: ", IERC20(indexToken).balanceOf(address(this)));
 
-        require(IERC20(collateralToken).balanceOf(address(this)) == 0, "collateral amount should be 0");
+        // require(IERC20(collateralToken).balanceOf(address(this)) == 0, "collateral amount should be 0");
     }
 }

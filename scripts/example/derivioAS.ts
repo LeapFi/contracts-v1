@@ -5,8 +5,12 @@ import {
   IERC20,
   IUniswapV3Factory,
   IUniswapV3Pool,
+  ISwapRouter,
   IPositionRouter,
+  DerivioPositionManager,
 } from "../../typechain";
+import { getPositionsInfos, closeAllPositions } from "../../src/position";
+import { swap } from "../../src/swap";
 
 
 async function main(): Promise<void> {
@@ -18,9 +22,11 @@ async function main(): Promise<void> {
 
   const uniswapV3Factory = await ethers.getContractAt("IUniswapV3Factory", addresses.UniswapV3Factory) as IUniswapV3Factory;
   const uniswapV3Pool = await ethers.getContractAt("IUniswapV3Pool", await uniswapV3Factory.getPool(addresses.USDC, addresses.WETH, feeTier)) as IUniswapV3Pool;
+  const swapRouter = (await ethers.getContractAt("ISwapRouter", addresses.SwapRouter)) as ISwapRouter;
   const weth = await ethers.getContractAt("IERC20", addresses.WETH) as IERC20;
   const usdc = await ethers.getContractAt("IERC20", addresses.USDC) as IERC20;
   const positionRouter = await ethers.getContractAt("IPositionRouter", addresses.LeapPositionRouter) as IPositionRouter;
+  const derivioPositionManager = await ethers.getContractAt("DerivioPositionManager", addresses.DerivioPositionManager) as DerivioPositionManager;
 
   const { tick: currentTick } = await uniswapV3Pool.slot0();
   const tickSpacing = await uniswapV3Pool.tickSpacing();
@@ -31,32 +37,35 @@ async function main(): Promise<void> {
   await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
   await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
 
+  const valueInput = ethers.utils.parseUnits("0", 18);
+
   // Open DerivioAS
-  const positionParams = {
+  const positionParams = [{
     recipient: userAddr,
+    value: valueInput,
     tickLower: lowerTick,
     tickUpper: upperTick,
     feeTier: feeTier,
     amount0Desired: 0,
-    amount1Desired: ethers.utils.parseUnits("100", 6),
+    amount1Desired: ethers.utils.parseUnits("1000", 6),
     shortLeverage: 0,
-    swapMaxSlippage: 0,
-    shortMaxSlippage: 0,
-  };
-  await positionRouter.openDerivioA(positionParams, weth.address, usdc.address);
+    swapSqrtPriceLimitX96: 0,
+    shortPriceLimit: 0,
+  }];
+  // await positionRouter.openDerivioAPositions(positionParams, weth.address, usdc.address, { value: valueInput });
+  console.log('Open AS done.');
 
   // Get all positions in user
-  const positions = await positionRouter.positionsOf(userAddr);
+  // console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
 
   // Close all positions in user
-  const positionKeysArray = positions.map((position) => position.positionKey);
-  await positionRouter.closeDerivioA(positionKeysArray, weth.address, usdc.address);
+  // await closeAllPositions(positionRouter, derivioPositionManager, owner.address, weth.address, usdc.address);
 
-  const newPositions = await positionRouter.positionsOf(userAddr);
+  // Simulate swap fee
+  await swap(swapRouter, feeTier, owner, weth, usdc, 1, 18);
 
+  console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
   console.log("weth:", await weth.balanceOf(userAddr), "usdc:", await usdc.balanceOf(userAddr));
-  console.log(positions);
-  console.log(newPositions);
 }
 
 main()
