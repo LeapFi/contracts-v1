@@ -133,8 +133,32 @@ describe("DerivioA test", function () {
       //   };
       // }
     }
-  }
+  };
   
+  async function openDerivioFuture(isLong: boolean, collateralAmount: number, leverage: number) {
+    
+    let value = ethers.utils.parseUnits("0.001", 18);
+
+    await fundErc20(usdc, addresses.USDCWhale, owner.address, collateralAmount, 6);
+    await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
+    
+    const collateralAmountIn = ethers.utils.parseUnits(collateralAmount.toString(), 6);
+    const sizeDelta = ethers.utils.parseUnits((collateralAmount * leverage).toString(), 6);
+
+    await positionRouter.openDerivioFuturePositions([
+        {
+          recipient: owner.address,
+          value: value,
+          isLong: isLong,
+          collateralAmount: collateralAmountIn,
+          sizeDelta: sizeDelta,
+          acceptPrice: isLong ? ethers.constants.MaxUint256 : 0,
+        }],
+        usdc.address,
+        weth.address,
+        { value: value }
+      );
+  };
   
 
   // Reuse the same setup in every test.
@@ -159,19 +183,20 @@ describe("DerivioA test", function () {
 
   describe("PositionRouter control flow", function () {
 
-    // it("#1 open DerivioAS by Position Router", async function () {
+    it("#1 open DerivioAS by Position Router", async function () {
 
-    //   await openDerivioA(-25, 10, 0, 0);
-    //   console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
-    //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
-    // });
+      const slot0 = await uniswapV3Pool.slot0();
+      await openDerivioA(slot0, -25, 10, 0, 0);
+      console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
+      console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+    });
 
-    // it("#2 open DerivioAL by Position Router", async function () {
+    it("#2 open DerivioAL by Position Router", async function () {
       
-    //   await openDerivioA(-25, 10, 1000000, 0.02);
-    //   // console.log('positionsInfos:', await getPositionsInfos(derivioPositionManager, owner.address));
-    //   console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
-    // });
+      const slot0 = await uniswapV3Pool.slot0();
+      await openDerivioA(slot0, -25, 10, 1000000, 0.02);
+      console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
+    });
 
     // it("#3 close DerivioAS by Position Router", async function () {
       
@@ -257,42 +282,42 @@ describe("DerivioA test", function () {
     //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
     // });
 
-    it("#9 Position in Uniswap have fees", async function () {
+    // it("#9 Position in Uniswap have fees", async function () {
 
-      const slot0 = await uniswapV3Pool.slot0();
-      console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+    //   const slot0 = await uniswapV3Pool.slot0();
+    //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
       
-      await openDerivioA(slot0, -25, 45, 0, 0);
-      // await openDerivioA(slot0, -25, 10, 0, 0);
+    //   await openDerivioA(slot0, -25, 30, 0, 0);
+    //   // await openDerivioA(slot0, -25, 10, 0, 0);
 
-      await fundErc20(usdc, addresses.USDCWhale, owner.address, 100000, 6);
-      await swap(swapRouter, feeTier, owner, usdc, weth, 100000, 6);
-      // console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
+    //   await fundErc20(usdc, addresses.USDCWhale, owner.address, 100000, 6);
+    //   await swap(swapRouter, feeTier, owner, usdc, weth, 100000, 6);
+    //   // console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
       
-      const positions = await derivioPositionManager.getAllPositions(owner.address);
-      const positionKeys = positions.map(pos => pos.positionKey);
+    //   const positions = await derivioPositionManager.getAllPositions(owner.address);
+    //   const positionKeys = positions.map(pos => pos.positionKey);
 
-      const feesBefore = await derivioPositionManager.feeOf(positionKeys[0]);
-      console.log("Fees before:", JSON.stringify(feesBefore, null, 2));
-      console.log(feesBefore);
-      console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+    //   const feesBefore = await derivioPositionManager.feeOf(positionKeys[0]);
+    //   console.log("Fees before:", JSON.stringify(feesBefore, null, 2));
+    //   console.log(feesBefore);
+    //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
 
-      const wethBalanceBefore = await weth.balanceOf(owner.address);
-      const usdcBalanceBefore = await usdc.balanceOf(owner.address);
+    //   const wethBalanceBefore = await weth.balanceOf(owner.address);
+    //   const usdcBalanceBefore = await usdc.balanceOf(owner.address);
 
-      console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
-      await derivioPositionManager.claimFees(owner.address, positionKeys[0]);
+    //   console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
+    //   await derivioPositionManager.claimFees(owner.address, positionKeys[0]);
 
-      const wethBalanceAfter = await weth.balanceOf(owner.address);
-      const usdcBalanceAfter = await usdc.balanceOf(owner.address);
-      console.log("weth: " + wethBalanceAfter + "  usdc: " + usdcBalanceAfter);
+    //   const wethBalanceAfter = await weth.balanceOf(owner.address);
+    //   const usdcBalanceAfter = await usdc.balanceOf(owner.address);
+    //   console.log("weth: " + wethBalanceAfter + "  usdc: " + usdcBalanceAfter);
       
-      const fee0 = feesBefore[0].fees[0].amount.toNumber();
-      const fee1 = feesBefore[0].fees[1].amount.toNumber();
+    //   const fee0 = feesBefore[0].fees[0].amount.toNumber();
+    //   const fee1 = feesBefore[0].fees[1].amount.toNumber();
 
-      expect(wethBalanceAfter.sub(wethBalanceBefore)).to.eq(fee0);
-      expect(usdcBalanceAfter.sub(usdcBalanceBefore)).to.eq(fee1);
-    });
+    //   expect(wethBalanceAfter.sub(wethBalanceBefore)).to.eq(fee0);
+    //   expect(usdcBalanceAfter.sub(usdcBalanceBefore)).to.eq(fee1);
+    // });
 
     // it("#9.1 Out of range swap event don't have fees", async function () {
 
@@ -313,126 +338,94 @@ describe("DerivioA test", function () {
     //   console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
     // });
 
-    // it("#10 Open DerivioFuture", async function () {
+    it("#10 Open DerivioFuture", async function () {
       
-    //   console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+      console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+      const gmxKeeper = await ethers.getImpersonatedSigner(addresses.GMXKeeper);
+      const positionKeeper = await ethers.getImpersonatedSigner(addresses.GMXFastPriceFeed);
       
-    //   let value = ethers.utils.parseUnits("0.001", 18);
-
-    //   await fundErc20(usdc, addresses.USDCWhale, owner.address, 50, 6);
-    //   await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
+      // Long
+      await openDerivioFuture(true, 500, 5);
       
-    //   const collateralAmount = await usdc.balanceOf(owner.address);
-    //   const sizeDelta = collateralAmount.mul(500).div(100);
+      // Short
+      // await openDerivioFuture(false, 500, 5);
 
-    //   // Long
-    //   await positionRouter.openDerivioFuturePositions([
-    //     {
-    //       recipient: owner.address,
-    //       value: value,
-    //       isLong: true,
-    //       collateralAmount: collateralAmount,
-    //       sizeDelta: sizeDelta,
-    //       acceptPrice: ethers.constants.MaxUint256,
-    //     }],
-    //     usdc.address,
-    //     weth.address,
-    //     { value: value }
-    //   );
+      // console.log('setPricesWithBitsAndExecute.........................');
+      // await gmxFastPriceFeed.connect(gmxKeeper).setPricesWithBits(getPriceBits([]), await getBlockTime());
+      // const tx = await gmxFastPriceFeed.connect(gmxKeeper).setPricesWithBitsAndExecute(
+      //   "399072254701357173801603550548272",
+      //   "1683857962", 
+      //   9999999999, // _endIndexForIncreasePositions
+      //   9999999999, // _endIndexForDecreasePositions
+      //   10000, // _maxIncreasePositions
+      //   10000 // _maxDecreasePositions
+      // );
+
+      // await gmxFastPriceFeed.connect(gmxKeeper).setPricesWithBitsAndExecute(
+      //   "399151482863852991389922179535799",
+      //   "1683858077", 
+      //   9999999999, // _endIndexForIncreasePositions
+      //   9999999999, // _endIndexForDecreasePositions
+      //   0, // _maxIncreasePositions
+      //   1000 // _maxDecreasePositions
+      // );
+
+      // await gmxFastPriceFeed.connect(gmxKeeper).setPricesWithBits("443915394701494028093366599013166", await getBlockTime());
+
+      const tx = await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
+      // await gmxPositionRouter.connect(positionKeeper).executeDecreasePositions(999999999, addresses.GMXFastPriceFeed);
+      // await gmxFastPriceFeed.connect(gmxKeeper).setPricesWithBits("443915394701494028093366599013166", await getBlockTime());
+
+      const receipt = await tx.wait();
+      for (const event of receipt.events || []) {
+        try {
+          const parsedEvent = gmxFastPriceFeed.interface.parseLog(event);
+          console.log();
+          console.log();
+          console.log(`Log index: ${event.logIndex}`, `Event name: ${parsedEvent.name}`);
+
+          // Loop through the parsedEvent.args array and parse all parameters
+          const eventParams = Object.entries(parsedEvent.args).slice(1); // Skip the first element (event signature)
+          for (const [key, value] of eventParams) {
+            if (isNaN(key)) { // Check if the key is a string (not a number)
+              console.log(`${key}:`, value);
+            }
+          }
+
+          console.log("----");
+        } catch (error) {
+          console.log("Unrecognized event:", inspect(event, { depth: null, colors: true }));
+        }
+      }
+
+
+      // const positionKeys = positions.map(pos => pos.positionKey);
+      // console.log(positions);
+      console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
+      // console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
       
-    //   // Short
-    //   // await positionRouter.openDerivioFuturePositions([
-    //   //   {
-    //   //     recipient: owner.address,
-    //   //     value: value,
-    //   //     isLong: false,
-    //   //     collateralAmount: collateralAmount,
-    //   //     sizeDelta: sizeDelta,
-    //   //     acceptPrice: 0,
-    //   //   }],
-    //   //   usdc.address,
-    //   //   weth.address,
-    //   //   { value: value }
-    //   // );
+      // value = ethers.utils.parseUnits("0.0001", 18);
+      // await positionRouter.closeDerivioFuture([
+      //   {
+      //     value: value,
+      //     positionKey: positionKeys[0],
+      //     minOut: 0,
+      //     acceptPrice: 0
+      //   }],
+      //   usdc.address,
+      //   weth.address,
+      //   { value: value }
+      // );
 
-    //   // console.log('setPricesWithBitsAndExecute.........................');
-    //   const gmxKeeper = await ethers.getImpersonatedSigner(addresses.GMXKeeper);
-    //   // await gmxFastPriceFeed.connect(gmxKeeper).setPricesWithBits(getPriceBits([]), await getBlockTime());
-    //   const tx = await gmxFastPriceFeed.connect(gmxKeeper).setPricesWithBitsAndExecute(
-    //     "399072254701357173801603550548272",
-    //     "1683857962", 
-    //     9999999999, // _endIndexForIncreasePositions
-    //     9999999999, // _endIndexForDecreasePositions
-    //     10000, // _maxIncreasePositions
-    //     10000 // _maxDecreasePositions
-    //   );
-
-    //   // await gmxFastPriceFeed.connect(gmxKeeper).setPricesWithBitsAndExecute(
-    //   //   "399151482863852991389922179535799",
-    //   //   "1683858077", 
-    //   //   9999999999, // _endIndexForIncreasePositions
-    //   //   9999999999, // _endIndexForDecreasePositions
-    //   //   0, // _maxIncreasePositions
-    //   //   1000 // _maxDecreasePositions
-    //   // );
-
-    //   // await gmxFastPriceFeed.connect(gmxKeeper).setPricesWithBits("443915394701494028093366599013166", await getBlockTime());
-
-    //   const positionKeeper = await ethers.getImpersonatedSigner(addresses.GMXFastPriceFeed);
-    //   // const tx = await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
-    //   // await gmxPositionRouter.connect(positionKeeper).executeDecreasePositions(999999999, addresses.GMXFastPriceFeed);
-    //   // await gmxFastPriceFeed.connect(gmxKeeper).setPricesWithBits("443915394701494028093366599013166", await getBlockTime());
-
-    //   const receipt = await tx.wait();
-    //   for (const event of receipt.events || []) {
-    //     try {
-    //       const parsedEvent = gmxFastPriceFeed.interface.parseLog(event);
-    //       console.log();
-    //       console.log();
-    //       console.log(`Log index: ${event.logIndex}`, `Event name: ${parsedEvent.name}`);
-
-    //       // Loop through the parsedEvent.args array and parse all parameters
-    //       const eventParams = Object.entries(parsedEvent.args).slice(1); // Skip the first element (event signature)
-    //       for (const [key, value] of eventParams) {
-    //         if (isNaN(key)) { // Check if the key is a string (not a number)
-    //           console.log(`${key}:`, value);
-    //         }
-    //       }
-
-    //       console.log("----");
-    //     } catch (error) {
-    //       console.log("Unrecognized event:", inspect(event, { depth: null, colors: true }));
-    //     }
-    //   }
-
-
-    //   // const positionKeys = positions.map(pos => pos.positionKey);
-    //   // console.log(positions);
-    //   console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
-    //   // console.log("weth: " + await weth.balanceOf(owner.address) + "  usdc: " + await usdc.balanceOf(owner.address));
+      // await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
+      // await gmxPositionRouter.connect(positionKeeper).executeDecreasePositions(999999999, addresses.GMXFastPriceFeed);
       
-    //   // value = ethers.utils.parseUnits("0.0001", 18);
-    //   // await positionRouter.closeDerivioFuture([
-    //   //   {
-    //   //     value: value,
-    //   //     positionKey: positionKeys[0],
-    //   //     minOut: 0,
-    //   //     acceptPrice: 0
-    //   //   }],
-    //   //   usdc.address,
-    //   //   weth.address,
-    //   //   { value: value }
-    //   // );
-
-    //   // await gmxPositionRouter.connect(positionKeeper).executeIncreasePositions(999999999, addresses.GMXFastPriceFeed);
-    //   // await gmxPositionRouter.connect(positionKeeper).executeDecreasePositions(999999999, addresses.GMXFastPriceFeed);
-      
-    //   // const newPositions = await derivioPositionManager.getAllPositions(owner.address);
-    //   // const newPositionKeys = newPositions.map(pos => pos.positionKey);
+      // const newPositions = await derivioPositionManager.getAllPositions(owner.address);
+      // const newPositionKeys = newPositions.map(pos => pos.positionKey);
   
-    //   // expect(newPositionKeys.length).to.equal(positionKeys.length - 1);
-    //   // console.log(newPositionKeys);
-    // });
+      // expect(newPositionKeys.length).to.equal(positionKeys.length - 1);
+      // console.log(newPositionKeys);
+    });
 
     // it("#11 Should be open DerivioAL by with leverage", async function () {
       

@@ -34,7 +34,7 @@ const config: HardhatUserConfig = {
         url: `https://arbitrum-mainnet.infura.io/v3/${INFURA_KEY}`,
         // url: 'https://testnet.leapfi.io',
         // url: 'http://172.104.111.236:8545',
-        blockNumber: 71602557,
+        blockNumber: 60602557,
       },
       blockGasLimit: 0x1fffffffffff,
       gasPrice: 0,  

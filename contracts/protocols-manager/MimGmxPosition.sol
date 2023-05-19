@@ -52,8 +52,6 @@ contract MimGmxPosition is ReentrancyGuard {
             path = new address[](2);
             path[0] = collateralToken;
             path[1] = indexToken;
-            console.log('collateralToken:', collateralToken);
-            console.log('indexToken:', indexToken);
         }
         else {
             path = new address[](1);
@@ -70,18 +68,6 @@ contract MimGmxPosition is ReentrancyGuard {
         bytes32 referralCode = 0;
         uint256 executionFee = msg.value;
         
-        console.log('MimVaultAddr:', address(this));
-        console.log('msg.value', msg.value);
-        console.log('executionFee', executionFee);
-        console.log('path length:', path.length);
-        console.log('path', path[0]);
-        console.log('indexToken', indexToken);
-        console.log('_collateralAmount', _collateralAmount);
-        console.log('_sizeDelta', _sizeDelta);
-        console.log('isLong', isLong);
-        console.log('_acceptPrice', _acceptPrice);
-        console.logBytes32(referralCode);
-
         gmxPositionRouter.createIncreasePosition{ value: executionFee }(
             path, 
             indexToken, 
@@ -105,17 +91,6 @@ contract MimGmxPosition is ReentrancyGuard {
         (uint256 sizeDelta, uint256 collateralDelta, , , , , , ) = gmxVault.getPosition(address(this), collateralToken, indexToken, isLong);
         uint256 executionFee = msg.value;
         
-        console.log('_recipient:', _recipient);
-        console.log('_minOut:', _minOut);
-        console.log('_acceptablePrice:', _acceptablePrice);
-        console.log('sizeDelta:', sizeDelta);
-        console.log('path:', path[0]);
-        console.log('indexToken:', indexToken);
-        console.log('isLong:', isLong);
-        console.log('msg.value:', msg.value);
-
-        // bool withdrawETH = false; // Set to true if you want to receive ETH instead of the collateral token
-
         gmxPositionRouter.createDecreasePosition{ value: executionFee }(
             path,
             indexToken,
@@ -149,9 +124,9 @@ contract MimGmxPosition is ReentrancyGuard {
 
         if (!_isExecuted) {
             
-            // console.log("returning collateral amount..........");
-            // uint256 collateralAmount = IERC20(collateralToken).balanceOf(address(this));
-            // IERC20(collateralToken).safeTransfer(account, collateralAmount);
+            console.log("returning collateral amount..........");
+            uint256 collateralAmount = IERC20(collateralToken).balanceOf(address(this));
+            IERC20(collateralToken).safeTransfer(account, collateralAmount);
         }
 
         console.logBytes32(_positionKey);
@@ -167,19 +142,16 @@ contract MimGmxPosition is ReentrancyGuard {
         )
     {
         isLong_ = isLong;
-        (sizeDelta_, collateral_, averagePrice_, entryFundingRate_, 
-        reserveAmount_, realisedPnl_, realisedPnLPositive_, lastIncreasedTime_) = gmxVault.getPosition(address(this), collateralToken, indexToken, isLong);
 
-        console.log('MimVaultAddr:', address(this));
-        console.log("isLong: %s", isLong);
-        console.log("sizeDelta: %s", sizeDelta_);
-        console.log("collateral: %s", collateral_);
-        console.log("entryFundingRate_: %s", entryFundingRate_);
-        console.log("reserveAmount_: %s", reserveAmount_);
-        console.log("lastIncreasedTime_: %s", lastIncreasedTime_);
-        console.log("collateral amount: ", IERC20(collateralToken).balanceOf(address(this)));
-        console.log("index amount: ", IERC20(indexToken).balanceOf(address(this)));
+        if (isLong) {
+            (sizeDelta_, collateral_, averagePrice_, entryFundingRate_, 
+            reserveAmount_, realisedPnl_, realisedPnLPositive_, lastIncreasedTime_) = gmxVault.getPosition(address(this), indexToken, indexToken, isLong);
+        }
+        else {
+            (sizeDelta_, collateral_, averagePrice_, entryFundingRate_, 
+            reserveAmount_, realisedPnl_, realisedPnLPositive_, lastIncreasedTime_) = gmxVault.getPosition(address(this), collateralToken, indexToken, isLong);
+        }
 
-        // require(IERC20(collateralToken).balanceOf(address(this)) == 0, "collateral amount should be 0");
+        require(IERC20(collateralToken).balanceOf(address(this)) == 0, "collateral amount should be 0");
     }
 }

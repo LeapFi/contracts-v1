@@ -31,20 +31,9 @@ interface IDerivioA {
         IProtocolPositionManager.Fund[] funds;
     }
 
-    struct ProtocolOpenResult {
-        address manager;
-        bytes32 key;
-    }
-
-    struct ProtocolCloseArg {
-        address manager;
-        bytes inputs;
-        uint256 value;
-    }
-
     function openAS(OpenArgs memory _args) external returns (IDerivioPositionManager.ProtocolOpenResult[] memory);
     function openAL(OpenArgs memory _args) external payable returns (IDerivioPositionManager.ProtocolOpenResult[] memory);
 
-    function positionOf(bytes32 positionKey) external view returns (ProtocolOpenResult[] memory);
-    function closeProtocolsPosition(address account, bytes32 positionKey, ProtocolCloseArg[] calldata args) external payable returns (ProtocolCloseResult[] memory);
+    function positionOf(bytes32 positionKey) external view returns (IDerivioPositionManager.ProtocolOpenResult[] memory);
+    function closePosition(address account, IDerivioPositionManager.ProtocolCloseArg[] calldata args) external payable returns (IDerivioPositionManager.ProtocolCloseResult[] memory);
 }
