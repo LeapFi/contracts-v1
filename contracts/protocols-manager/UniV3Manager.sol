@@ -198,22 +198,13 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
     function updateUniPosition(bytes32 _key) 
         private 
     {
-        UniV3Position storage accountLiquidity = liquidities[_key];
-        bytes32 uniKey = keccak256(abi.encodePacked(address(this), accountLiquidity.tickLower, accountLiquidity.tickUpper));
-        (
-            ,
-            ,
-            ,
-            accountLiquidity.feeGrowthData.feeGrowthInside0X128,
-            accountLiquidity.feeGrowthData.feeGrowthInside1X128
-        ) =
-            IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), accountLiquidity.feeTier)).positions(uniKey);
+        UniV3Position storage uniPosition = liquidities[_key];
 
         (
-            accountLiquidity.feeGrowthData.feeGrowthInside0X128, 
-            accountLiquidity.feeGrowthData.feeGrowthInside1X128
+            uniPosition.feeGrowthData.feeGrowthInside0X128, 
+            uniPosition.feeGrowthData.feeGrowthInside1X128
         ) =
-            getFeeGrowthInside(accountLiquidity.tickLower, accountLiquidity.tickUpper, accountLiquidity.pool);
+            getFeeGrowthInside(uniPosition.tickLower, uniPosition.tickUpper, uniPosition.pool);
     }
 
     function closePosition(address _account, bytes calldata _args) 
@@ -226,11 +217,11 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         // Verify position exists (assuming the modifier was a function)
         require(liquidities[_key].account == _account, "Position does not exist");
         
-        UniV3Position memory accountLiquidity = positionOf(_key);
+        UniV3Position memory uniPosition = positionOf(_key);
 
         (uint128 fee0, uint128 fee1) = unCollectedFee(_key);
-        (uint256 owed0, uint256 owed1) = accountLiquidity.pool.burn(accountLiquidity.tickLower, accountLiquidity.tickUpper, accountLiquidity.liquidity);
-        (uint256 amount0, uint256 amount1) = accountLiquidity.pool.collect(address(this), accountLiquidity.tickLower, accountLiquidity.tickUpper, uint128(owed0 + fee0), uint128(owed1 + fee1));
+        (uint256 owed0, uint256 owed1) = uniPosition.pool.burn(uniPosition.tickLower, uniPosition.tickUpper, uniPosition.liquidity);
+        (uint256 amount0, uint256 amount1) = uniPosition.pool.collect(address(this), uniPosition.tickLower, uniPosition.tickUpper, uint128(owed0 + fee0), uint128(owed1 + fee1));
 
         removeKey(_account, _key);
 
@@ -269,13 +260,13 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         view 
         returns (uint128 fee0, uint128 fee1) 
     {
-        UniV3Position memory accountLiquidity = positionOf(_key);
+        UniV3Position memory uniPosition = positionOf(_key);
 
         (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
-            getFeeGrowthInside(accountLiquidity.tickLower, accountLiquidity.tickUpper, accountLiquidity.pool);
+            getFeeGrowthInside(uniPosition.tickLower, uniPosition.tickUpper, uniPosition.pool);
 
-        fee0 = uint128(FullMath.mulDiv(accountLiquidity.liquidity, feeGrowthInside0X128 - accountLiquidity.feeGrowthData.feeGrowthInside0X128, FixedPoint128_Q128));
-        fee1 = uint128(FullMath.mulDiv(accountLiquidity.liquidity, feeGrowthInside1X128 - accountLiquidity.feeGrowthData.feeGrowthInside1X128, FixedPoint128_Q128));
+        fee0 = uint128(FullMath.mulDiv(uniPosition.liquidity, feeGrowthInside0X128 - uniPosition.feeGrowthData.feeGrowthInside0X128, FixedPoint128_Q128));
+        fee1 = uint128(FullMath.mulDiv(uniPosition.liquidity, feeGrowthInside1X128 - uniPosition.feeGrowthData.feeGrowthInside1X128, FixedPoint128_Q128));
     }
 
     function getFeeGrowthInside(
@@ -344,10 +335,10 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         console.log('collectAllFees...............');
         (uint128 fee0, uint128 fee1) = unCollectedFee(_key);
         if (fee0 > 0 || fee1 > 0) {
-            UniV3Position memory accountLiquidity = positionOf(_key);
+            UniV3Position memory uniPosition = positionOf(_key);
 
-            accountLiquidity.pool.burn(accountLiquidity.tickLower, accountLiquidity.tickUpper, 0);
-            (uint128 amount0, uint128 amount1) = accountLiquidity.pool.collect(address(this), accountLiquidity.tickLower, accountLiquidity.tickUpper, fee0, fee1);
+            uniPosition.pool.burn(uniPosition.tickLower, uniPosition.tickUpper, 0);
+            (uint128 amount0, uint128 amount1) = uniPosition.pool.collect(address(this), uniPosition.tickLower, uniPosition.tickUpper, fee0, fee1);
 
             console.log('fee0:', fee0);
             console.log('fee1:', fee1);
