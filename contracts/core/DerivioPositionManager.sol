@@ -55,6 +55,10 @@ contract DerivioPositionManager is ReentrancyGuard {
         IProtocolPositionManager.Fund[] fees;
     }
 
+    event AddPosition(address account, bytes32 positionKey);
+    event RemovePosition(address account, bytes32 positionKey);
+    event RemovePositionFail(address account, bytes32 positionKey);
+
     function verifyPositionOwner(address _account, bytes32 _positionKey) internal view {
 
         bytes32[] memory keys = accountKeys[_account];
@@ -122,13 +126,15 @@ contract DerivioPositionManager is ReentrancyGuard {
     function addPositionInfo(address _account, ProtocolOpenResult[] memory _openResults)
         private
     {
-        bytes32 key = getNextPositionKey(_account);
-        accountKeys[_account].push(key);
+        bytes32 positionKey = getNextPositionKey(_account);
+        accountKeys[_account].push(positionKey);
 
-        ProtocolOpenResult[] storage pos = protocolPositions[key];
+        ProtocolOpenResult[] storage pos = protocolPositions[positionKey];
         for (uint i = 0; i < _openResults.length; i++) {
             pos.push(_openResults[i]);
         }
+
+        emit AddPosition(_account, positionKey);
     }
 
     function removePositionInfo(address _account, bytes32 _positionKey) 
@@ -143,10 +149,14 @@ contract DerivioPositionManager is ReentrancyGuard {
                 // Remove the composedPositions from the mapping
                 delete protocolPositions[_positionKey];
 
+                emit RemovePosition(_account, _positionKey);
+
                 // The element has been removed, no need to continue the loop
                 return;
             }
         }
+
+        emit RemovePositionFail(_account, _positionKey);
     }
 
     function feeOf(bytes32 _positionKey)
