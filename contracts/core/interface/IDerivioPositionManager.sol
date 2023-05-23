@@ -12,6 +12,7 @@ interface IDerivioPositionManager {
 
     struct AggregateInfo {
         ProtocolOpenResult openResult;
+        uint256 timestamp;
         bytes currentInfos;
         IProtocolPositionManager.Fund[] fees;
     }
@@ -25,7 +26,7 @@ interface IDerivioPositionManager {
 
     struct ProtocolOpenResult {
         IProtocolPositionManager manager;
-        uint256 blockNumber;
+        uint256 timestamp;
         bytes32 key;
         bytes infos;
     }

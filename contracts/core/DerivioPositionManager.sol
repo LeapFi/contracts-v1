@@ -20,6 +20,7 @@ contract DerivioPositionManager is ReentrancyGuard {
 
     struct AggregateInfo {
         ProtocolOpenResult openResult;
+        uint256 timestamp;
         bytes currentInfos;
         IProtocolPositionManager.Fund[] fees;
     }
@@ -33,7 +34,7 @@ contract DerivioPositionManager is ReentrancyGuard {
 
     struct ProtocolOpenResult {
         IProtocolPositionManager manager;
-        uint256 blockNumber;
+        uint256 timestamp;
         bytes32 key;
         bytes infos;
     }
@@ -90,7 +91,7 @@ contract DerivioPositionManager is ReentrancyGuard {
 
             result_[i] = ProtocolOpenResult({
                 manager: _args[i].manager,
-                blockNumber: block.number,
+                timestamp: block.timestamp,
                 key: key,
                 infos: infos
             });
@@ -223,6 +224,7 @@ contract DerivioPositionManager is ReentrancyGuard {
 
         for (uint i = 0; i < positions.length; i++) {
             aggregateInfos_[i].openResult = positions[i];
+            aggregateInfos_[i].timestamp = positions[i].timestamp;
             aggregateInfos_[i].currentInfos = positions[i].manager.infoOf(positions[i].key);
             aggregateInfos_[i].fees = positions[i].manager.feesOf(positions[i].key);
         }

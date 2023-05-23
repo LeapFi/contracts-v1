@@ -106,7 +106,10 @@ contract GmxManager is ReentrancyGuard, IProtocolPositionManager {
 
         address minVaultAddr = address(uint160(uint256(_key)));
         (
+            bool isOpenSuccess,
+            bool isCloseSuccess,
             bool isLong,
+            uint256 contractCollateralAmount,
             uint256 sizeDelta, 
             uint256 collateral, 
             uint256 averagePrice, 
@@ -117,7 +120,10 @@ contract GmxManager is ReentrancyGuard, IProtocolPositionManager {
             uint256 lastIncreasedTime
         ) = MimGmxPosition(minVaultAddr).getGmxPosition();
 
-        return abi.encode(isLong, sizeDelta, collateral, averagePrice, entryFundingRate, reserveAmount, realisedPnl, realisedPnLPositive, lastIncreasedTime);
+        return abi.encode(isOpenSuccess, isCloseSuccess, isLong, contractCollateralAmount, 
+            sizeDelta, collateral, averagePrice, entryFundingRate, 
+            reserveAmount, realisedPnl, realisedPnLPositive, lastIncreasedTime
+        );
     }
 
     function receiveFund(address _account, Fund[] memory _fund) external 
