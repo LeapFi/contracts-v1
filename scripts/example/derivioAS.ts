@@ -52,17 +52,8 @@ async function main(): Promise<void> {
     swapSqrtPriceLimitX96: 0,
     shortPriceLimit: 0,
   }];
-  // await positionRouter.openDerivioAPositions(positionParams, weth.address, usdc.address, { value: valueInput });
+  await positionRouter.openDerivioAPositions(positionParams, weth.address, usdc.address, { value: valueInput });
   console.log('Open AS done.');
-
-  // Get all positions in user
-  // console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
-
-  // Close all positions in user
-  // await closeAllPositions(positionRouter, derivioPositionManager, owner.address, weth.address, usdc.address);
-
-  // Simulate swap fee
-  await swap(swapRouter, feeTier, owner, weth, usdc, 1, 18);
 
   console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
   console.log("weth:", await weth.balanceOf(userAddr), "usdc:", await usdc.balanceOf(userAddr));

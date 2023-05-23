@@ -42,7 +42,7 @@ const config: HardhatUserConfig = {
       allowUnlimitedContractSize: true,
     },
 
-    arbitrumForked: {
+    leapFiTestnet: {
       accounts: ACC_1 ? [ACC_1] : [],
       url: 'https://testnet.leapfi.io',
     },

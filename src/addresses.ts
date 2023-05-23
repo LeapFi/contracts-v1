@@ -33,7 +33,7 @@ export const getAddresses = (network: string): Addresses => {
         LeapPositionRouter: "",
         DerivioPositionManager: "",
       };
-    case "arbitrumForked":
+    case "leapFiTestnet":
       return {
         UniswapV3Factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
         SwapRouter: "0xE592427A0AEce92De3Edee1F18E0157C05861564",
@@ -46,8 +46,8 @@ export const getAddresses = (network: string): Addresses => {
         WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
         USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
         USDCWhale: "0x905dfcd5649217c42684f23958568e533c711aa3",
-        LeapPositionRouter: "0xFF560c590b454f5774F6D8E706039B1290a889e5",
-        DerivioPositionManager: "0xD005270e3786A6469Be46d014A0dA043337cae8c",
+        LeapPositionRouter: "0x78a8B354b6784C2d3cbf93f10a10290a7DB5Ff83",
+        DerivioPositionManager: "0xde2304c904b93FCE9130a919D34046D4792f2028",
       };
     case "arbitrum":
       return {

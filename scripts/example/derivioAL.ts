@@ -6,8 +6,10 @@ import {
   IUniswapV3Factory,
   IUniswapV3Pool,
   IPositionRouter,
+  IGmxPositionRouter,
+  DerivioPositionManager
 } from "../../typechain";
-import { getPositionsInfos, closeAllPositions } from "../../src/position";
+import { getPositionsInfos } from "../../src/position";
 
 // Helper function to wait for a certain amount of time
 function delay(ms: number) {
@@ -46,6 +48,7 @@ async function main(): Promise<void> {
 
   const uniswapV3Factory = (await ethers.getContractAt("IUniswapV3Factory", addresses.UniswapV3Factory)) as IUniswapV3Factory;
   const uniswapV3Pool = (await ethers.getContractAt("IUniswapV3Pool", await uniswapV3Factory.getPool(addresses.USDC, addresses.WETH, feeTier))) as IUniswapV3Pool;
+  const gmxPositionRouter = (await ethers.getContractAt("IGmxPositionRouter", addresses.GMXPositionRouter)) as IGmxPositionRouter;
   const weth = (await ethers.getContractAt("IERC20", addresses.WETH)) as IERC20;
   const usdc = (await ethers.getContractAt("IERC20", addresses.USDC)) as IERC20;
   const positionRouter = (await ethers.getContractAt("IPositionRouter", addresses.LeapPositionRouter)) as IPositionRouter;
@@ -60,12 +63,12 @@ async function main(): Promise<void> {
   await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
   await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
 
-  const valueInput = ethers.utils.parseUnits("0.0001", 18);
+  const minExecutionFee = await gmxPositionRouter.minExecutionFee();
   
   // Open DerivioAL
   const positionParams = [{
     recipient: userAddr,
-    value: valueInput,
+    value: minExecutionFee,
     tickLower: lowerTick,
     tickUpper: upperTick,
     feeTier: feeTier,
@@ -75,19 +78,11 @@ async function main(): Promise<void> {
     swapSqrtPriceLimitX96: 0,
     shortPriceLimit: 0,
   }];
-  await positionRouter.openDerivioAPositions(positionParams, weth.address, usdc.address, { value: valueInput });
-  // await delay(30000);
-  
-  // await waitForGmxPosition(positionRouter, weth.address, usdc.address);
+  await positionRouter.openDerivioAPositions(positionParams, weth.address, usdc.address, { value: minExecutionFee, gasLimit: "99999999999" });
 
   // Get all positions in user
-  // console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
-
-  // Close all positions in user
-  // await closeAllPositions(positionRouter, derivioPositionManager, owner.address, weth.address, usdc.address);
-
-  // console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
-  // console.log("weth:", await weth.balanceOf(userAddr), "usdc:", await usdc.balanceOf(userAddr));
+  console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
+  console.log("weth:", await weth.balanceOf(userAddr), "usdc:", await usdc.balanceOf(userAddr));
 }
 
 main()

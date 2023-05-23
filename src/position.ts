@@ -15,6 +15,7 @@ interface PositionParse {
   
 interface BaseAggregateInfo {
     manager: String;
+    timestamp: String;
     key: String;
     openInfos: OpenInfo;
 }
@@ -41,7 +42,10 @@ interface GmxOpenInfo extends OpenInfo {
 }
   
 interface GmxManagerInfo {
+    isOpenSuccess: boolean;
+    isCloseSuccess: boolean;
     isLong: boolean;
+    contractCollateralAmount: String;
     sizeDelta: String;
     collateral: String;
     averagePrice: String;
@@ -94,25 +98,39 @@ export async function getPositionsInfos(
   
           const decodedValues = ethers.utils.defaultAbiCoder.decode(
             [
-              'bool', 'uint256', 'uint256', 'uint256', 'uint256',
-              'uint256', 'uint256', 'bool', 'uint256'
+              'bool', 
+              'bool', 
+              'bool', 
+              'uint256', 
+              'uint256', 
+              'uint256', 
+              'uint256', 
+              'uint256',
+              'uint256', 
+              'uint256', 
+              'bool', 
+              'uint256'
             ],
             aggregateInfo.currentInfos
           );
           const gmxManagerInfo: GmxManagerInfo = {
-            isLong: decodedValues[0],
-            sizeDelta: decodedValues[1].toString(),
-            collateral: decodedValues[2].toString(),
-            averagePrice: decodedValues[3].toString(),
-            entryFundingRate: decodedValues[4].toString(),
-            reserveAmount: decodedValues[5].toString(),
-            realisedPnl: decodedValues[6].toString(),
-            realisedPnLPositive: decodedValues[7],
-            lastIncreasedTime: decodedValues[8].toString()
+            isOpenSuccess: decodedValues[0],
+            isCloseSuccess: decodedValues[1],
+            isLong: decodedValues[2],
+            contractCollateralAmount: decodedValues[3].toString(),
+            sizeDelta: decodedValues[4].toString(),
+            collateral: decodedValues[5].toString(),
+            averagePrice: decodedValues[6].toString(),
+            entryFundingRate: decodedValues[7].toString(),
+            reserveAmount: decodedValues[8].toString(),
+            realisedPnl: decodedValues[9].toString(),
+            realisedPnLPositive: decodedValues[10],
+            lastIncreasedTime: decodedValues[11].toString()
           };
   
           const gmxManagerAggregateInfo: GmxManagerAggregateInfo = {
             manager: "Gmx Manager",
+            timestamp: aggregateInfo.timestamp.toString(),
             key: aggregateInfo.openResult.key,
             openInfos: gmxOpenInfo,
             currentInfos: gmxManagerInfo,
@@ -147,6 +165,7 @@ export async function getPositionsInfos(
   
           const uniV3ManagerAggregateInfo = {
             manager: "Uniswap V3 Manager",
+            timestamp: aggregateInfo.timestamp.toString(),
             key: aggregateInfo.openResult.key,
             openInfos: uniV3OpenInfo,
             fees: fees,
