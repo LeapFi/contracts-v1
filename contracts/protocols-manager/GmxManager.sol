@@ -2,8 +2,8 @@
 pragma solidity 0.8.13;
 
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import '@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol';
-import '@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol';
+import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "../interface/gmx/IGmxPositionRouter.sol";
 import "../interface/gmx/IGmxRouter.sol";
 import "../interface/gmx/IGmxVault.sol";
@@ -149,4 +149,31 @@ contract GmxManager is ReentrancyGuard, IProtocolPositionManager {
     {
 
     }
+
+    function isLiquidated(bytes32 _key) external view returns (bool)
+    {
+        address minVaultAddr = address(uint160(uint256(_key)));
+        (
+            bool isOpenSuccess,
+            ,
+            ,
+            ,
+            uint256 sizeDelta, 
+            , 
+            , 
+            , 
+            , 
+            , 
+            , 
+            uint256 lastIncreasedTime
+        ) = MimGmxPosition(minVaultAddr).getGmxPosition();
+
+        if (isOpenSuccess && sizeDelta == 0 && lastIncreasedTime == 0) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+    
 }

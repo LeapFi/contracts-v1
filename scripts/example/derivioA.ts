@@ -50,7 +50,7 @@ async function main(): Promise<void> {
       shortLeverage: 0,
       swapSqrtPriceLimitX96: 0,
       shortPriceLimit: 0,
-    },
+    }, // AS
     {
       recipient: owner.address,
       value: minExecutionFee,
@@ -62,7 +62,7 @@ async function main(): Promise<void> {
       shortLeverage: 1e6,
       swapSqrtPriceLimitX96: 0,
       shortPriceLimit: 0,
-    }],
+    }], // AL
     weth.address,
     usdc.address,
     { value: minExecutionFee }

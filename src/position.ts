@@ -28,6 +28,8 @@ interface OpenInfo {}
   
 interface UniV3OpenInfo extends OpenInfo {
     liquidity: String;
+    tickLower: String;
+    tickUpper: String;
     token0: String;
     token1: String;
     feeTier: String;
@@ -143,6 +145,8 @@ export async function getPositionsInfos(
           const decodedOpenValues = ethers.utils.defaultAbiCoder.decode(
             [
               'uint256', // liquidity
+              'int24',   // tickLower
+              'int24',   // tickUpper
               'address', // token0
               'address', // token1
               'uint256', // feeTier
@@ -151,9 +155,11 @@ export async function getPositionsInfos(
           );
           const uniV3OpenInfo: UniV3OpenInfo = {
             liquidity: decodedOpenValues[0].toString(),
-            token0: decodedOpenValues[1],
-            token1: decodedOpenValues[2],
-            feeTier: decodedOpenValues[3].toString(),
+            tickLower: decodedOpenValues[1].toString(),
+            tickUpper: decodedOpenValues[2].toString(),
+            token0: decodedOpenValues[3],
+            token1: decodedOpenValues[4],
+            feeTier: decodedOpenValues[5].toString(),
           };
   
           const fees = aggregateInfo.fees.map((fee) => {

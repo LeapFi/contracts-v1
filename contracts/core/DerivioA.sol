@@ -4,8 +4,8 @@ pragma solidity 0.8.13;
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
-import '@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol';
-import '@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol';
+import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { FullMath, LiquidityAmounts } from "@arrakisfi/v3-lib-0.8/contracts/LiquidityAmounts.sol";
@@ -17,6 +17,9 @@ import "../peripherals/UniHelper.sol";
 import "hardhat/console.sol";
 
 contract DerivioA is ReentrancyGuard {
+
+    address public admin;
+    mapping (address => bool) public isLiquidator;
 
     using SafeERC20 for IERC20;
     IERC20 public token0;
@@ -33,7 +36,7 @@ contract DerivioA is ReentrancyGuard {
     IUniswapV3Factory private immutable uniFactory;
     ISwapRouter private immutable swapRouter;
 
-    uint256 private constant shortDenominator = 1e6;
+    uint256 private constant leverageDenominator = 1e6;
 
     struct OpenArgs {
         address recipient;
@@ -54,6 +57,18 @@ contract DerivioA is ReentrancyGuard {
         bool swapToCollateral;
     }
 
+    event SetLiquidator(address account, bool isActive);
+
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "DerivioA: forbidden");
+        _;
+    }
+
+    modifier onlyLiquidator() {
+        require(isLiquidator[msg.sender], "DerivioA: forbidden");
+        _;
+    }
+
     constructor (
         UniHelper _uniHelper, 
         IUniswapV3Factory _uniFactory, 
@@ -66,6 +81,8 @@ contract DerivioA is ReentrancyGuard {
         bool _isZeroCollateral
         ) 
     {
+        admin = msg.sender;
+        
         uniHelper = _uniHelper;
         uniFactory = _uniFactory;
         swapRouter = _swapRouter;
@@ -82,6 +99,11 @@ contract DerivioA is ReentrancyGuard {
         indexToken = _isZeroCollateral ? token1 : token0;
     }
 
+    function setLiquidator(address _account, bool _isActive) external onlyAdmin {
+        isLiquidator[_account] = _isActive;
+        emit SetLiquidator(_account, _isActive);
+    }
+
     function openAS(OpenArgs memory _args) 
         external nonReentrant 
         returns (IDerivioPositionManager.ProtocolOpenResult[] memory)
@@ -89,7 +111,6 @@ contract DerivioA is ReentrancyGuard {
         console.log('_args.swapSqrtPriceLimitX96:', _args.swapSqrtPriceLimitX96);
         console.log('recover:', uniHelper.sqrtPriceX96ToPrice(uint160(_args.swapSqrtPriceLimitX96)));
         
-
         IUniswapV3Pool pool = IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), _args.feeTier));
         uniHelper.validateTickSpacing(pool, _args.tickLower, _args.tickUpper);
         (uint160 sqrtPriceX96, int24 tickCurrent, , , , , ) = pool.slot0();
@@ -199,7 +220,7 @@ contract DerivioA is ReentrancyGuard {
     }
 
     function closePosition(address _account, CloaseArgs memory _args)
-        external payable nonReentrant 
+        public payable nonReentrant 
         returns (IDerivioPositionManager.ProtocolCloseResult[] memory closedPositions_)
     {
         IDerivioPositionManager.ProtocolOpenResult[] memory position = derivioPositionManager.positionOf(_args.positionKey);
@@ -242,6 +263,15 @@ contract DerivioA is ReentrancyGuard {
                 // Handle GMX closed position if needed
             }
         }
+    }
+
+    function liquidatePosition(address _account, CloaseArgs memory _args) 
+        external onlyLiquidator 
+        returns (IDerivioPositionManager.ProtocolCloseResult[] memory closedPositions_)
+    {
+        require(derivioPositionManager.validatedIsLiquidated(_args.positionKey), "no protocol position is liquidated");
+
+        return closePosition(_account, _args);
     }
  
     function swapToOptimalAmount(
@@ -319,14 +349,14 @@ contract DerivioA is ReentrancyGuard {
         uint256 amount0Total = _args.amount0Desired + uniHelper.amount1ToAmount0(_args.amount1Desired, _sqrtPriceX96);
 
         if (_args.shortLeverage != 0) {
-            require(_args.shortLeverage >= shortDenominator, "shortLeverage too small");
+            require(_args.shortLeverage >= leverageDenominator, "shortLeverage too small");
 
             (uint256 amount0TotalSim, , , , uint256 amount0LowerSim, ) = uniHelper.ratioAtTick(_tickCurrent, _args.tickLower, _args.tickUpper, false);
             amountCollateral = amount0Total * amount0LowerSim / amount0TotalSim;
 
             // apply leverage
             shortDelta = amountCollateral;
-            amountCollateral = amountCollateral * shortDenominator / _args.shortLeverage;
+            amountCollateral = amountCollateral * leverageDenominator / _args.shortLeverage;
 
             amount0Total -= amountCollateral;
 

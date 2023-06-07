@@ -158,7 +158,5 @@ contract MimGmxPosition is ReentrancyGuard {
             (sizeDelta_, collateral_, averagePrice_, entryFundingRate_, 
             reserveAmount_, realisedPnl_, realisedPnLPositive_, lastIncreasedTime_) = gmxVault.getPosition(address(this), collateralToken, indexToken, isLong);
         }
-
-        // require(IERC20(collateralToken).balanceOf(address(this)) == 0, "collateral amount should be 0");
     }
 }

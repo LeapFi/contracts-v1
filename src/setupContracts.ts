@@ -6,7 +6,10 @@ import {
   IUniswapV3Pool,
   ISwapRouter,
   IGmxPositionRouter,
+  IGmxPositionManager,
   IGmxFastPriceFeed,
+  IGmxPriceFeed,
+  IGmxVault,
   UniV3Manager,
 } from "../typechain";
 import { getAddresses, Addresses } from "../src/addresses";
@@ -19,8 +22,11 @@ export async function setupContracts(feeTier: number) {
   const uniswapV3Factory = (await ethers.getContractAt("IUniswapV3Factory", addresses.UniswapV3Factory)) as IUniswapV3Factory;
   const uniswapV3Pool = (await ethers.getContractAt("IUniswapV3Pool", await uniswapV3Factory.getPool(addresses.USDC, addresses.WETH, feeTier))) as IUniswapV3Pool;
   const swapRouter = (await ethers.getContractAt("ISwapRouter", addresses.SwapRouter)) as ISwapRouter;
-  const gmxPositionRouter = (await ethers.getContractAt("IGmxPositionRouter", addresses.GMXPositionRouter)) as IGmxPositionRouter;
-  const gmxFastPriceFeed = (await ethers.getContractAt("IGmxFastPriceFeed", addresses.GMXFastPriceFeed)) as IGmxFastPriceFeed;
+  const gmxPositionRouter = (await ethers.getContractAt("IGmxPositionRouter", addresses.GmxPositionRouter)) as IGmxPositionRouter;
+  const gmxPositionManager = (await ethers.getContractAt("IGmxPositionManager", addresses.GmxPositionManager)) as IGmxPositionManager;
+  const gmxFastPriceFeed = (await ethers.getContractAt("IGmxFastPriceFeed", addresses.GmxFastPriceFeed)) as IGmxFastPriceFeed;
+  const gmxEthPriceFeed = (await ethers.getContractAt("IGmxPriceFeed", addresses.GmxEthPriceFeed)) as IGmxPriceFeed;
+  const gmxVault = (await ethers.getContractAt("IGmxVault", addresses.GmxVault)) as IGmxVault;
   const weth = (await ethers.getContractAt("IERC20", addresses.WETH)) as IERC20;
   const usdc = (await ethers.getContractAt("IERC20", addresses.USDC)) as IERC20;
 
@@ -44,8 +50,8 @@ export async function setupContracts(feeTier: number) {
   const GmxManager = await ethers.getContractFactory("GmxManager");
   const gmxManager = await GmxManager.deploy(
     gmxPositionRouter.address,
-    addresses.GMXRouter,
-    addresses.GMXVault,
+    addresses.GmxRouter,
+    addresses.GmxVault,
   );
 
   const DerivioA = await ethers.getContractFactory("DerivioA");
@@ -89,7 +95,10 @@ export async function setupContracts(feeTier: number) {
     uniswapV3Pool,
     swapRouter,
     gmxPositionRouter,
+    gmxPositionManager,
     gmxFastPriceFeed,
+    gmxEthPriceFeed,
+    gmxVault,
     weth,
     usdc,
     uniHelper,

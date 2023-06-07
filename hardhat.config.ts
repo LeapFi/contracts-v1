@@ -2,15 +2,14 @@ import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "hardhat-gas-reporter";
 import { ethers } from "hardhat";
+require('dotenv').config();
 
+const acc1 = process.env.PRIVATEKEY_1;
+const acc2 = process.env.PRIVATEKEY_2;
+const etherscanApiKey = process.env.ETHERSCAN_API_KEY;
+const alchemyKey = process.env.ALCHEMY_KEY;
+const infuraKey = process.env.INFURA_KEY;
 
-const {
-  ACC_1,
-  ACC_2,
-  ETHERSCAN_API_KEY,
-  ALCHEMY_KEY,
-  INFURA_KEY
-} = require("./env.json")
 
 const config: HardhatUserConfig = {
   
@@ -30,8 +29,8 @@ const config: HardhatUserConfig = {
     hardhat: {
       chainId: 42161,
       forking: {
-        // url: `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-        url: `https://arbitrum-mainnet.infura.io/v3/${INFURA_KEY}`,
+        // url: `https://arb-mainnet.g.alchemy.com/v2/${alchemyKey}`,
+        url: `https://arbitrum-mainnet.infura.io/v3/${infuraKey}`,
         // url: 'https://testnet.leapfi.io',
         // url: 'http://172.104.111.236:8545',
         blockNumber: 60602557,
@@ -43,13 +42,13 @@ const config: HardhatUserConfig = {
     },
 
     leapFiTestnet: {
-      accounts: ACC_1 ? [ACC_1] : [],
-      url: 'https://testnet.leapfi.io',
+      accounts: acc1 ? [acc1] : [],
+      url: 'https://testnet-ganache-dev.up.railway.app/',
     },
 
     arbitrum: {
-      accounts: ACC_1 ? [ACC_1] : [],
-      url: `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
+      accounts: acc1 ? [acc1] : [],
+      url: `https://arb-mainnet.g.alchemy.com/v2/${alchemyKey}`,
     },
   },
 

@@ -59,6 +59,8 @@ interface IDerivioPositionManager {
         ProtocolCloseArg[] memory _args
     ) external payable returns (ProtocolCloseResult[] memory result_);
 
+    function validatedIsLiquidated(bytes32 _positionKey) external view returns (bool);
+
     function feeOf(bytes32 _positionKey) external view returns (ProtocolFees[] memory result_);
 
     function claimFees(address _account, bytes32 _positionKey) external;

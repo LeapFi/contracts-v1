@@ -5,9 +5,9 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
-import '@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol';
-import '@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol';
-import '@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol';
+import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import { TickMath } from "@arrakisfi/v3-lib-0.8/contracts/TickMath.sol";
 import { FullMath, LiquidityAmounts } from "@arrakisfi/v3-lib-0.8/contracts/LiquidityAmounts.sol";
 import "../core/interface/IProtocolPositionManager.sol";
@@ -49,7 +49,7 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         uint24 feeTier;
         IUniswapV3Pool pool;
         uint128 liquidity;
-        uint160 entryPriice;
+        uint160 entryPrice;
         FeeGrowthData feeGrowthData;
     }
 
@@ -141,6 +141,8 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
 
         result_ = abi.encode(
             openArgs.liquidityDesired,
+            openArgs.tickLower, 
+            openArgs.tickUpper,
             token0,
             token1,
             openArgs.feeTier
@@ -172,7 +174,7 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         uint24 _feeTier,
         IUniswapV3Pool _pool,
         uint128 _liquidity,
-        uint160 _entryPriice
+        uint160 _entryPrice
     )
         private
         returns (bytes32 key)
@@ -184,7 +186,7 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         uniV3Position.feeTier = _feeTier;
         uniV3Position.pool = _pool;
         uniV3Position.liquidity = _liquidity;
-        uniV3Position.entryPriice = _entryPriice;
+        uniV3Position.entryPrice = _entryPrice;
 
         nextId[_account]++;
         key = keccak256(abi.encodePacked(_account, nextId[_account], _tickLower, _tickUpper));
@@ -283,6 +285,8 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         (, , uint256 feeGrowthOutside0Lower, uint256 feeGrowthOutside1Lower, , , ,) = pool.ticks(tickLower);
         (, , uint256 feeGrowthOutside0Upper, uint256 feeGrowthOutside1Upper, , , ,) = pool.ticks(tickUpper);
 
+        console.log("feeGrowthOutside0Lower:", feeGrowthOutside0Lower);
+
         // calculate fee growth below
         uint256 feeGrowthBelow0X128;
         uint256 feeGrowthBelow1X128;
@@ -362,5 +366,10 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         for (uint i = 0; i < _fund.length; i++) {
             IERC20(_fund[i].token).safeTransfer(_account, _fund[i].amount);
         }
+    }
+
+    function isLiquidated(bytes32 _key) external pure returns (bool)
+    {
+        return false;
     }
 }

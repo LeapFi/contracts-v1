@@ -59,7 +59,7 @@ contract DerivioPositionManager is ReentrancyGuard {
     event AddPosition(address account, bytes32 positionKey);
     event RemovePosition(address account, bytes32 positionKey);
     event RemovePositionFail(address account, bytes32 positionKey);
-
+    
     function verifyPositionOwner(address _account, bytes32 _positionKey) internal view {
 
         bytes32[] memory keys = accountKeys[_account];
@@ -101,7 +101,7 @@ contract DerivioPositionManager is ReentrancyGuard {
     }
 
     function closeProtocolsPosition(address _account, bytes32 _positionKey, ProtocolCloseArg[] memory _args) 
-        external payable nonReentrant
+        public payable nonReentrant
         returns (ProtocolCloseResult[] memory result_) 
     {
         verifyPositionOwner(_account, _positionKey);
@@ -122,6 +122,23 @@ contract DerivioPositionManager is ReentrancyGuard {
         }
 
         removePositionInfo(_account, _positionKey);
+    }
+
+    function validatedIsLiquidated(bytes32 _positionKey) 
+        external view
+        returns (bool) 
+    {
+        ProtocolOpenResult[] memory positionResults = positionOf(_positionKey);
+
+        for (uint i = 0; i < positionResults.length; i++) {
+
+            bytes32 key = positionResults[i].key;
+            if (positionResults[i].manager.isLiquidated(key)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     function addPositionInfo(address _account, ProtocolOpenResult[] memory _openResults)

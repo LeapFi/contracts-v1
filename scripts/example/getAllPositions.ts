@@ -18,6 +18,9 @@ async function main(): Promise<void> {
   const usdc = await ethers.getContractAt("IERC20", addresses.USDC) as IERC20;
   const derivioPositionManager = await ethers.getContractAt("DerivioPositionManager", addresses.DerivioPositionManager) as DerivioPositionManager;
 
+  console.log("Account:", owner.address);
+  console.log("Account balance:", (await owner.getBalance()).toString());
+  console.log("weth:", await weth.balanceOf(userAddr), "usdc:", await usdc.balanceOf(userAddr));
   console.log('positionsInfos:', JSON.stringify(await getPositionsInfos(derivioPositionManager, owner.address), null, 2));
   console.log("weth:", await weth.balanceOf(userAddr), "usdc:", await usdc.balanceOf(userAddr));
 }

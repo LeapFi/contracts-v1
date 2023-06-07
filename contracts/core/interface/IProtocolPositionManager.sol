@@ -17,4 +17,6 @@ interface IProtocolPositionManager {
     
     function feesOf(bytes32 _key) external view returns (Fund[] memory); 
     function claimFees(address _account, bytes32 _key) external;
+
+    function isLiquidated(bytes32 _key) external view returns (bool);
 }
