@@ -1,21 +1,21 @@
 import { ethers } from "hardhat";
-import { BytesLike } from "ethers";
+import { BytesLike, BigNumber } from "ethers";
 import {
     IPositionRouter,
     DerivioPositionManager,
   } from "../typechain";
+import BN from 'bn.js'
 
 type Position = ReturnType<DerivioPositionManager["getAllPositions"]> extends Promise<Array<infer T>> ? T : never;
-type CloseArgs = Parameters<IPositionRouter["closeDerivioA"]>[0] extends Array<infer T> ? T : never;
 
 interface PositionParse {
     positionKey: string;
+    timestamp: String;
     aggregateInfos: BaseAggregateInfo[];
 }
   
 interface BaseAggregateInfo {
     manager: String;
-    timestamp: String;
     key: String;
     openInfos: OpenInfo;
 }
@@ -33,6 +33,7 @@ interface UniV3OpenInfo extends OpenInfo {
     token0: String;
     token1: String;
     feeTier: String;
+    entrySqrtPriceX96: String;
 }
   
 interface GmxOpenInfo extends OpenInfo {
@@ -72,6 +73,7 @@ export async function getPositionsInfos(
   
       const pos: PositionParse = {
         positionKey: position.positionKey,
+        timestamp: position.timestamp.toString(),
         aggregateInfos: [],
       }
       
@@ -132,7 +134,6 @@ export async function getPositionsInfos(
   
           const gmxManagerAggregateInfo: GmxManagerAggregateInfo = {
             manager: "Gmx Manager",
-            timestamp: aggregateInfo.timestamp.toString(),
             key: aggregateInfo.openResult.key,
             openInfos: gmxOpenInfo,
             currentInfos: gmxManagerInfo,
@@ -150,6 +151,7 @@ export async function getPositionsInfos(
               'address', // token0
               'address', // token1
               'uint256', // feeTier
+              'uint160', // entrySqrtPriceX96
             ],
             aggregateInfo.openResult.infos
           );
@@ -160,6 +162,7 @@ export async function getPositionsInfos(
             token0: decodedOpenValues[3],
             token1: decodedOpenValues[4],
             feeTier: decodedOpenValues[5].toString(),
+            entrySqrtPriceX96: decodedOpenValues[6].toString(),
           };
   
           const fees = aggregateInfo.fees.map((fee) => {
@@ -171,7 +174,6 @@ export async function getPositionsInfos(
   
           const uniV3ManagerAggregateInfo = {
             manager: "Uniswap V3 Manager",
-            timestamp: aggregateInfo.timestamp.toString(),
             key: aggregateInfo.openResult.key,
             openInfos: uniV3OpenInfo,
             fees: fees,
@@ -185,6 +187,27 @@ export async function getPositionsInfos(
     });
   
     return posList;
+}
+
+
+export async function getProductKeeperFee(
+  orderManager: any,
+  gmxPositionRouter: any,
+  productId: number
+  ): Promise<string> {
+  
+  // Support DerivioAL, DerivioFuture
+  let keeperFee = await orderManager.keeperFeeOf(productId);
+  let gmxExecutionFee = await gmxPositionRouter.minExecutionFee();
+
+  let totalKeeperFee = keeperFee.add(gmxExecutionFee).toString();
+  
+  // let keeperFee = BigNumber.from(await orderManager.keeperFeeOf(productId));
+  // let gmxExecutionFee = BigNumber.from(await gmxPositionRouter.minExecutionFee());
+
+  // let totalKeeperFee = keeperFee.add(gmxExecutionFee).toString();
+
+  return totalKeeperFee;
 }
 
 
@@ -203,19 +226,15 @@ export async function closeDerivioAPositions(
 
     // Map positionKeys and values to CloseArgs array
     const closeArgsList = positionKeys.map((positionKey, index) => ({
-        value: ethers.utils.parseUnits(values[index].toString(), 18),
         positionKey: positionKey,
         swapToCollateral: swapToCollateral,
     }));
 
     // Calculate the total value for all positions
-    const totalValue = closeArgsList.reduce(
-        (acc, closeArg) => acc.add(closeArg.value),
-        ethers.BigNumber.from(0)
-    );
+    let totalValue = values.reduce((previousValue, currentValue) => previousValue + currentValue, 0);
 
-    return await positionRouter.closeDerivioA(closeArgsList, token0Address, token1Address, {
-        value: totalValue,
+    return await positionRouter.closeDerivioPosition(closeArgsList, token0Address, token1Address, {
+        value: ethers.utils.parseUnits(totalValue.toString(), 18),
     });
 }
 

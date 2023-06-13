@@ -19,7 +19,6 @@ contract DerivioFuture is ReentrancyGuard {
 
     struct OpenArgs {
         address recipient;
-        uint256 value;
         bool isLong;
         uint256 collateralAmount;
         uint256 sizeDelta;
@@ -27,7 +26,6 @@ contract DerivioFuture is ReentrancyGuard {
     }
 
     struct CloseArgs {
-        uint256 value;
         bytes32 positionKey;
         uint256 minOut;
         uint256 acceptPrice;
@@ -47,25 +45,27 @@ contract DerivioFuture is ReentrancyGuard {
         indexToken = IERC20(_indexToken);
     }
 
-    function openFuture(OpenArgs memory _args)
+    function openFuture(OpenArgs memory _args, uint256 _keeperFee)
         external payable nonReentrant 
-        returns (IDerivioPositionManager.ProtocolOpenResult[] memory) 
+        returns (IDerivioPositionManager.OpenInfo memory) 
     {
         collateralToken.safeTransferFrom(msg.sender, address(this), _args.collateralAmount);
         collateralToken.approve(address(gmxManager), _args.collateralAmount);
 
-        IDerivioPositionManager.ProtocolOpenArg[] memory openArgs = new IDerivioPositionManager.ProtocolOpenArg[](1);
-        openArgs[0] = createGmxProtocolOpenArg(_args.value, _args.isLong, _args.collateralAmount, _args.sizeDelta, _args.acceptPrice);
+        uint256 gmxExecutionFee = gmxManager.minExecutionFee();
+
+        IDerivioPositionManager.OpenArg[] memory openArgs = new IDerivioPositionManager.OpenArg[](1);
+        openArgs[0] = createGmxProtocolOpenArg(gmxExecutionFee, _args.isLong, _args.collateralAmount, _args.sizeDelta, _args.acceptPrice);
 
         // Open positions
-        return derivioPositionManager.openProtocolsPosition{ value: _args.value }(_args.recipient, openArgs);
+        return derivioPositionManager.openProtocolsPosition{ value: gmxExecutionFee }(_args.recipient, openArgs, _keeperFee);
     }
 
     function createGmxProtocolOpenArg(uint256 _value, bool _isLong, uint256 _collateralAmount, uint256 _sizeDelta, uint256 _acceptPrice) 
         internal view 
-        returns (IDerivioPositionManager.ProtocolOpenArg memory gmxArg) 
+        returns (IDerivioPositionManager.OpenArg memory gmxArg) 
     {
-        gmxArg = IDerivioPositionManager.ProtocolOpenArg({
+        gmxArg = IDerivioPositionManager.OpenArg({
             manager: gmxManager,
             value: _value,
             funds: new IProtocolPositionManager.Fund[](1),
@@ -85,24 +85,29 @@ contract DerivioFuture is ReentrancyGuard {
 
     function closeFuture(address _account, CloseArgs memory _args)
         external payable nonReentrant 
-        returns (IDerivioPositionManager.ProtocolCloseResult[] memory)
+        returns (IDerivioPositionManager.CloseResult[] memory)
     {
-        IDerivioPositionManager.ProtocolOpenResult[] memory position = derivioPositionManager.positionOf(_args.positionKey);
-        IDerivioPositionManager.ProtocolCloseArg[] memory protocolCloseArgs = new IDerivioPositionManager.ProtocolCloseArg[](position.length);
+        IDerivioPositionManager.OpenInfo memory position = derivioPositionManager.positionOf(_args.positionKey);
+        IDerivioPositionManager.CloseArg[] memory protocolCloseArgs = new IDerivioPositionManager.CloseArg[](position.openResults.length);
 
-        require(position.length == 1, "Only allow one protocol position");
+        require(position.openResults.length == 1, "Only allow one protocol position");
 
-        for (uint i = 0; i < position.length; i++) { 
+        uint256 gmxExecutionFee = gmxManager.minExecutionFee();
+        uint256 sumValue = 0;
 
-            require(position[i].manager == gmxManager, "Position manager error");
+        for (uint i = 0; i < position.openResults.length; i++) { 
 
-            protocolCloseArgs[i] = IDerivioPositionManager.ProtocolCloseArg({
+            require(position.openResults[i].manager == gmxManager, "Position manager error");
+
+            protocolCloseArgs[i] = IDerivioPositionManager.CloseArg({
                 manager: gmxManager,
-                inputs: abi.encode(position[i].key, _args.minOut, _args.acceptPrice),
-                value: _args.value
+                inputs: abi.encode(position.openResults[i].key, _args.minOut, _args.acceptPrice),
+                value: gmxExecutionFee
             });
+
+            sumValue += gmxExecutionFee;
         }
 
-        return derivioPositionManager.closeProtocolsPosition{ value: _args.value }(_account, _args.positionKey, protocolCloseArgs);
+        return derivioPositionManager.closeProtocolsPosition{ value: sumValue }(_account, _args.positionKey, protocolCloseArgs);
     }
 }

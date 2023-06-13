@@ -43,7 +43,7 @@ const config: HardhatUserConfig = {
 
     leapFiTestnet: {
       accounts: acc1 ? [acc1] : [],
-      url: 'https://testnet-ganache-dev.up.railway.app/',
+      url: 'https://alpha.dev.leapfi.io/',
     },
 
     arbitrum: {

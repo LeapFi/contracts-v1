@@ -16,6 +16,7 @@ export interface Addresses {
   USDCWhale: string;
   LeapPositionRouter: string;
   DerivioPositionManager: string;
+  OrderManager: string;
 }
 
 export const getAddresses = (network: string): Addresses => {
@@ -38,6 +39,7 @@ export const getAddresses = (network: string): Addresses => {
         USDCWhale: "0x905dfcd5649217c42684f23958568e533c711aa3",
         LeapPositionRouter: "",
         DerivioPositionManager: "",
+        OrderManager: "",
       };
     case "leapFiTestnet":
       return {
@@ -57,6 +59,7 @@ export const getAddresses = (network: string): Addresses => {
         USDCWhale: "0x905dfcd5649217c42684f23958568e533c711aa3",
         LeapPositionRouter: "0xd18CF0194a2A35FE6436Dd8D723B03F405b58a17",
         DerivioPositionManager: "0x44Fd5c224F5988462Df1E2d176Bfb5489907D825",
+        OrderManager: "0x1D16BD123B76b49191B5E0eb61cb3128D666Af50",
       };
     case "arbitrum":
       return {
@@ -76,6 +79,7 @@ export const getAddresses = (network: string): Addresses => {
         USDCWhale: "",
         LeapPositionRouter: "",
         DerivioPositionManager: "",
+        OrderManager: "",
       };
     default:
       throw new Error(`No addresses for Network: ${network}`);

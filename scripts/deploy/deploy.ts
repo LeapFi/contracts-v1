@@ -11,6 +11,7 @@ import {
   IGmxPositionRouter,
   IGmxFastPriceFeed,
   DerivioA,
+  DerivioFuture,
   DerivioAFactory,
   PositionRouter,
 } from "../../typechain";
@@ -29,6 +30,7 @@ async function main(): Promise<void> {
   let weth: IERC20;
   let usdc: IERC20;
   let derivioA: DerivioA;
+  let derivioFuture: DerivioFuture;
   let derivioAFactory: DerivioAFactory;
   let positionRouter: PositionRouter;
 
@@ -38,8 +40,8 @@ async function main(): Promise<void> {
   uniswapV3Factory = (await ethers.getContractAt("IUniswapV3Factory", addresses.UniswapV3Factory)) as IUniswapV3Factory;
   uniswapV3Pool = (await ethers.getContractAt("IUniswapV3Pool", await uniswapV3Factory.getPool(addresses.USDC, addresses.WETH, feeTier))) as IUniswapV3Pool;
   swapRouter = (await ethers.getContractAt("ISwapRouter", addresses.SwapRouter)) as ISwapRouter;
-  gmxPositionRouter = (await ethers.getContractAt("IGmxPositionRouter", addresses.GMXPositionRouter)) as IGmxPositionRouter;
-  gmxFastPriceFeed = (await ethers.getContractAt("IGmxFastPriceFeed", addresses.GMXFastPriceFeed)) as IGmxFastPriceFeed;
+  gmxPositionRouter = (await ethers.getContractAt("IGmxPositionRouter", addresses.GmxPositionRouter)) as IGmxPositionRouter;
+  gmxFastPriceFeed = (await ethers.getContractAt("IGmxFastPriceFeed", addresses.GmxFastPriceFeed)) as IGmxFastPriceFeed;
   weth = (await ethers.getContractAt("IERC20", addresses.WETH)) as IERC20;
   usdc = (await ethers.getContractAt("IERC20", addresses.USDC)) as IERC20;
 
@@ -57,10 +59,12 @@ async function main(): Promise<void> {
   const derivioPositionManager = await DerivioPositionManager.deploy();
   console.log("DerivioPositionManager address:", derivioPositionManager.address);
 
+  const OrderManager = await ethers.getContractFactory("OrderManager");
+  const orderManager = await OrderManager.deploy(weth.address);
+
   const UniV3Manager = await ethers.getContractFactory("UniV3Manager");
   const uniV3Manager = await UniV3Manager.deploy(
     addresses.UniswapV3Factory,
-    addresses.SwapRouter,
     weth.address,
     usdc.address,
   );
@@ -69,45 +73,54 @@ async function main(): Promise<void> {
   const GmxManager = await ethers.getContractFactory("GmxManager");
   const gmxManager = await GmxManager.deploy(
     gmxPositionRouter.address,
-    addresses.GMXRouter,
-    addresses.GMXVault,
+    addresses.GmxRouter,
+    addresses.GmxVault,
   );
   console.log("GmxManager address:", gmxManager.address);
 
-  const DerivioA = await ethers.getContractFactory("DerivioA");
-  derivioA = await DerivioA.deploy(
-    uniHelper.address,
-    uniswapV3Factory.address,
-    swapRouter.address,
-    derivioPositionManager.address,
-    uniV3Manager.address,
-    gmxManager.address,
-    weth.address,
-    usdc.address,
-    false
-  );
-
   const PositionRouter = await ethers.getContractFactory("PositionRouter");
-  positionRouter = await PositionRouter.deploy(derivioAFactory.address, derivioPositionManager.address)
-  await positionRouter.addDerivioAPair(
+  positionRouter = await PositionRouter.deploy(
+    derivioAFactory.address, 
     uniHelper.address,
     addresses.UniswapV3Factory,
     addresses.SwapRouter,
     derivioPositionManager.address,
+    orderManager.address,
     uniV3Manager.address,
-    gmxManager.address,
+    gmxManager.address
+  );
+
+  await positionRouter.addDerivioAPair(
     weth.address,
     usdc.address,
     false
   );
 
   await positionRouter.addDerivioFuturePair(
-    derivioPositionManager.address,
-    gmxManager.address,
     usdc.address,
     weth.address
   );
   console.log("PositionRouter address:", positionRouter.address);
+  
+  const derivioAAdress = await positionRouter.getDerivioAContract(0, weth.address, usdc.address);
+  derivioA = (await ethers.getContractAt("DerivioA", derivioAAdress)) as DerivioA;
+
+  const derivioFutureAddress = await positionRouter.getDerivioFutureContract(1, usdc.address, weth.address);
+  derivioFuture = (await ethers.getContractAt("DerivioFuture", derivioFutureAddress)) as DerivioFuture;
+
+  await derivioA.setLiquidator(deployer.address, true);
+  await derivioPositionManager.setManager(derivioA.address, true);
+  await derivioPositionManager.setManager(derivioFuture.address, true);
+
+  // DerivioA keeper fee
+  await orderManager.setKeeperFee(0, ethers.utils.parseUnits("0.02", 18));
+  // DerivioFuture keeper fee
+  await orderManager.setKeeperFee(1, ethers.utils.parseUnits("0.01", 18));
+
+  await orderManager.setManager(positionRouter.address, true);
+  await orderManager.setManager(derivioA.address, true);
+  console.log("OrderManager address:", orderManager.address);
+
 }
 
 main()

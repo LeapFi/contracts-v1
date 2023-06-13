@@ -5,9 +5,10 @@ import {
   IERC20,
   IPositionRouter,
   IGmxPositionRouter,
-  DerivioPositionManager
+  DerivioPositionManager,
+  OrderManager
 } from "../../typechain";
-import { getPositionsInfos } from "../../src/position";
+import { getPositionsInfos, getProductKeeperFee } from "../../src/position";
 
 // Helper function to wait for a certain amount of time
 function delay(ms: number) {
@@ -22,24 +23,25 @@ async function main(): Promise<void> {
 
   const weth = (await ethers.getContractAt("IERC20", addresses.WETH)) as IERC20;
   const usdc = (await ethers.getContractAt("IERC20", addresses.USDC)) as IERC20;
-  const gmxPositionRouter = (await ethers.getContractAt("IGmxPositionRouter", addresses.GMXPositionRouter)) as IGmxPositionRouter;
+  const gmxPositionRouter = (await ethers.getContractAt("IGmxPositionRouter", addresses.GmxPositionRouter)) as IGmxPositionRouter;
   const positionRouter = (await ethers.getContractAt("IPositionRouter", addresses.LeapPositionRouter)) as IPositionRouter;
   const derivioPositionManager = await ethers.getContractAt("DerivioPositionManager", addresses.DerivioPositionManager) as DerivioPositionManager;
+  const orderManager = await ethers.getContractAt("OrderManager", addresses.OrderManager) as OrderManager;
   
   await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
   
   const isLong = true;
   const collateralAmount = 500;
   const leverage = 2;
-  const minExecutionFee = await gmxPositionRouter.minExecutionFee();
+  const keeperFee = await getProductKeeperFee(orderManager, gmxPositionRouter, 1);
 
   const collateralAmountIn = ethers.utils.parseUnits(collateralAmount.toString(), 6);
   const sizeDelta = ethers.utils.parseUnits((collateralAmount * leverage).toString(), 6);
 
+  
   await positionRouter.openDerivioFuturePositions([
     {
       recipient: owner.address,
-      value: minExecutionFee,
       isLong: isLong,
       collateralAmount: collateralAmountIn,
       sizeDelta: sizeDelta,
@@ -47,7 +49,7 @@ async function main(): Promise<void> {
     }],
     usdc.address,
     weth.address,
-    { value: minExecutionFee }
+    { value: keeperFee }
   );
     
   // Get all positions in user

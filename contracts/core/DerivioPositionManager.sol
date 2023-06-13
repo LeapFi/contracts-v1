@@ -7,51 +7,60 @@ import "hardhat/console.sol";
 
 contract DerivioPositionManager is ReentrancyGuard {
 
-    mapping(bytes32 => ProtocolOpenResult[]) public protocolPositions;
+    address public admin;
+    mapping(address => bool) public isManager;
+
+    mapping(bytes32 => OpenInfo) public protocolPositions;
     mapping(address => bytes32[]) public accountKeys;
 
     // account address => nextId
     mapping(address => uint256) public nextId;
-
+    
     struct Position {
         bytes32 positionKey;
+        uint256 timestamp;
         AggregateInfo[] aggregateInfos;
     }
 
     struct AggregateInfo {
-        ProtocolOpenResult openResult;
-        uint256 timestamp;
+        OpenResult openResult;
         bytes currentInfos;
         IProtocolPositionManager.Fund[] fees;
     }
 
-    struct ProtocolOpenArg {
+    struct OpenArg {
         IProtocolPositionManager manager;
         uint256 value;
         IProtocolPositionManager.Fund[] funds;
         bytes inputs;
     }
 
-    struct ProtocolOpenResult {
-        IProtocolPositionManager manager;
+    struct OpenInfo {
+        address account;
         uint256 timestamp;
+        uint256 keeperFee;
+        OpenResult[] openResults;
+    }
+
+    struct OpenResult {
+        IProtocolPositionManager manager;
         bytes32 key;
         bytes infos;
     }
 
-    struct ProtocolCloseArg {
+    struct CloseArg {
         IProtocolPositionManager manager;
         uint256 value;
         bytes inputs;
     }
 
-    struct ProtocolCloseResult {
+    struct CloseResult {
         IProtocolPositionManager manager;
         bytes infos;
         IProtocolPositionManager.Fund[] funds;
     }
 
-    struct ProtocolFees {
+    struct Fees {
         IProtocolPositionManager manager;
         IProtocolPositionManager.Fund[] fees;
     }
@@ -59,54 +68,70 @@ contract DerivioPositionManager is ReentrancyGuard {
     event AddPosition(address account, bytes32 positionKey);
     event RemovePosition(address account, bytes32 positionKey);
     event RemovePositionFail(address account, bytes32 positionKey);
+    event SetManager(address account, bool isActive);
     
-    function verifyPositionOwner(address _account, bytes32 _positionKey) internal view {
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "DerivioPositionManager: forbidden");
+        _;
+    }
 
-        bytes32[] memory keys = accountKeys[_account];
-        bool positionExists = false;
-        for (uint i = 0; i < keys.length; i++) {
-            if (keys[i] == _positionKey) {
-                positionExists = true;
-                break;
-            }
-        }
-        require(positionExists, "Position does not exist for the given account");
+    modifier onlyManager() {
+        require(isManager[msg.sender], "DerivioPositionManager: forbidden");
+        _;
+    }
+
+    function setManager(address _account, bool _isActive) external onlyAdmin {
+        isManager[_account] = _isActive;
+        emit SetManager(_account, _isActive);
+    }
+
+    function validatePositionOwner(address _account, bytes32 _positionKey) 
+        internal view 
+    {
+        OpenInfo memory position = positionOf(_positionKey);
+        require(position.account == _account, "Account don't own the position");
     }
 
     constructor () 
     {
-        
+        admin = msg.sender;
     }
 
-    function openProtocolsPosition(address _account, ProtocolOpenArg[] memory _args) 
-        external payable nonReentrant
-        returns (ProtocolOpenResult[] memory result_) 
+    function openProtocolsPosition(address _account, OpenArg[] memory _args, uint256 _keeperFee)
+        external payable nonReentrant onlyManager
+        returns (OpenInfo memory result_) 
     {
-        result_ = new ProtocolOpenResult[](_args.length);
+        bytes32 positionKey = getNextPositionKey(_account);
+        accountKeys[_account].push(positionKey);
+        OpenInfo storage pos = protocolPositions[positionKey];
+
+        pos.account = _account;
+        pos.timestamp = block.timestamp;
+        pos.keeperFee = _keeperFee;
+
         for (uint i = 0; i < _args.length; i++) {
 
             _args[i].manager.receiveFund(msg.sender, _args[i].funds);
             (bytes32 key, bytes memory infos) = _args[i].manager
                 .openPosition{ value: _args[i].value }(_account, _args[i].inputs);
 
-            result_[i] = ProtocolOpenResult({
+            pos.openResults.push(OpenResult({
                 manager: _args[i].manager,
-                timestamp: block.timestamp,
                 key: key,
                 infos: infos
-            });
+            }));
         }
 
-        addPositionInfo(_account, result_);
+        return pos;
     }
 
-    function closeProtocolsPosition(address _account, bytes32 _positionKey, ProtocolCloseArg[] memory _args) 
-        public payable nonReentrant
-        returns (ProtocolCloseResult[] memory result_) 
+    function closeProtocolsPosition(address _account, bytes32 _positionKey, CloseArg[] memory _args) 
+        public payable nonReentrant onlyManager
+        returns (CloseResult[] memory result_) 
     {
-        verifyPositionOwner(_account, _positionKey);
+        validatePositionOwner(_account, _positionKey);
 
-        result_ = new ProtocolCloseResult[](_args.length);
+        result_ = new CloseResult[](_args.length);
         for (uint i = 0; i < _args.length; i++) {
             
             (bytes memory positionInfo, IProtocolPositionManager.Fund[] memory closedFunds) = 
@@ -114,7 +139,7 @@ contract DerivioPositionManager is ReentrancyGuard {
 
             _args[i].manager.returnFund(msg.sender, closedFunds);
 
-             result_[i] = ProtocolCloseResult({
+             result_[i] = CloseResult({
                 manager: _args[i].manager,
                 infos: positionInfo,
                 funds: closedFunds
@@ -128,31 +153,17 @@ contract DerivioPositionManager is ReentrancyGuard {
         external view
         returns (bool) 
     {
-        ProtocolOpenResult[] memory positionResults = positionOf(_positionKey);
+        OpenInfo memory position = positionOf(_positionKey);
 
-        for (uint i = 0; i < positionResults.length; i++) {
+        for (uint i = 0; i < position.openResults.length; i++) {
 
-            bytes32 key = positionResults[i].key;
-            if (positionResults[i].manager.isLiquidated(key)) {
+            bytes32 key = position.openResults[i].key; 
+            if (position.openResults[i].manager.isLiquidated(key)) {
                 return true;
             }
         }
 
         return false;
-    }
-
-    function addPositionInfo(address _account, ProtocolOpenResult[] memory _openResults)
-        private
-    {
-        bytes32 positionKey = getNextPositionKey(_account);
-        accountKeys[_account].push(positionKey);
-
-        ProtocolOpenResult[] storage pos = protocolPositions[positionKey];
-        for (uint i = 0; i < _openResults.length; i++) {
-            pos.push(_openResults[i]);
-        }
-
-        emit AddPosition(_account, positionKey);
     }
 
     function removePositionInfo(address _account, bytes32 _positionKey) 
@@ -179,32 +190,39 @@ contract DerivioPositionManager is ReentrancyGuard {
 
     function feeOf(bytes32 _positionKey)
         public view
-        returns (ProtocolFees[] memory result_)
+        returns (Fees[] memory result_)
     {
-        ProtocolOpenResult[] memory positions = positionOf(_positionKey);
+        OpenInfo memory position = positionOf(_positionKey);
 
-        result_ = new ProtocolFees[](positions.length);
-        for (uint i = 0; i < positions.length; i++) {
-            result_[i].manager = positions[i].manager;
-            result_[i].fees = positions[i].manager.feesOf(positions[i].key);
+        result_ = new Fees[](position.openResults.length);
+        for (uint i = 0; i < position.openResults.length; i++) {
+            result_[i].manager = position.openResults[i].manager;
+            result_[i].fees = position.openResults[i].manager.feesOf(position.openResults[i].key);
         }
     }
 
     function claimFees(address _account, bytes32 _positionKey)
         public
     {
-        verifyPositionOwner(_account, _positionKey);
+        validatePositionOwner(_account, _positionKey);(_positionKey);(_account, _positionKey);
         
-        ProtocolOpenResult[] memory positions = positionOf(_positionKey);
+        OpenInfo memory position = positionOf(_positionKey);
 
-        for (uint i = 0; i < positions.length; i++) {
-            positions[i].manager.claimFees(_account, positions[i].key);
+        for (uint i = 0; i < position.openResults.length; i++) {
+            position.openResults[i].manager.claimFees(_account, position.openResults[i].key);
         }
+    }
+
+    function keeperFee(bytes32 _positionKey) 
+        public view
+        returns (uint256)
+    {
+        return protocolPositions[_positionKey].keeperFee;
     }
 
     function positionOf(bytes32 _positionKey) 
         public view
-        returns (ProtocolOpenResult[] memory)
+        returns (OpenInfo memory)
     {
         return protocolPositions[_positionKey];
     }
@@ -225,6 +243,7 @@ contract DerivioPositionManager is ReentrancyGuard {
 
         for (uint i = 0; i < positionKeys.length; i++) {
             result_[i].positionKey = positionKeys[i];
+            result_[i].timestamp = protocolPositions[positionKeys[i]].timestamp;
             result_[i].aggregateInfos = getAggregateInfos(positionKeys[i]);
         }
 
@@ -235,15 +254,14 @@ contract DerivioPositionManager is ReentrancyGuard {
         internal view
         returns (AggregateInfo[] memory aggregateInfos_)
     {
-        ProtocolOpenResult[] memory positions = positionOf(_positionKey);
+        OpenInfo memory position = positionOf(_positionKey);
 
-        aggregateInfos_ = new AggregateInfo[](positions.length);
+        aggregateInfos_ = new AggregateInfo[](position.openResults.length);
 
-        for (uint i = 0; i < positions.length; i++) {
-            aggregateInfos_[i].openResult = positions[i];
-            aggregateInfos_[i].timestamp = positions[i].timestamp;
-            aggregateInfos_[i].currentInfos = positions[i].manager.infoOf(positions[i].key);
-            aggregateInfos_[i].fees = positions[i].manager.feesOf(positions[i].key);
+        for (uint i = 0; i < position.openResults.length; i++) {
+            aggregateInfos_[i].openResult = position.openResults[i];
+            aggregateInfos_[i].currentInfos = position.openResults[i].manager.infoOf(position.openResults[i].key);
+            aggregateInfos_[i].fees = position.openResults[i].manager.feesOf(position.openResults[i].key);
         }
     }
 

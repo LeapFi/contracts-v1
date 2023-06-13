@@ -7,9 +7,10 @@ import {
   IUniswapV3Pool,
   IPositionRouter,
   IGmxPositionRouter,
-  DerivioPositionManager
+  DerivioPositionManager,
+  OrderManager
 } from "../../typechain";
-import { getPositionsInfos } from "../../src/position";
+import { getPositionsInfos, getProductKeeperFee } from "../../src/position";
 
 async function main(): Promise<void> {
   const feeTier = 500;
@@ -20,11 +21,12 @@ async function main(): Promise<void> {
 
   const uniswapV3Factory = (await ethers.getContractAt("IUniswapV3Factory", addresses.UniswapV3Factory)) as IUniswapV3Factory;
   const uniswapV3Pool = (await ethers.getContractAt("IUniswapV3Pool", await uniswapV3Factory.getPool(addresses.USDC, addresses.WETH, feeTier))) as IUniswapV3Pool;
-  const gmxPositionRouter = (await ethers.getContractAt("IGmxPositionRouter", addresses.GMXPositionRouter)) as IGmxPositionRouter;
+  const gmxPositionRouter = (await ethers.getContractAt("IGmxPositionRouter", addresses.GmxPositionRouter)) as IGmxPositionRouter;
   const weth = (await ethers.getContractAt("IERC20", addresses.WETH)) as IERC20;
   const usdc = (await ethers.getContractAt("IERC20", addresses.USDC)) as IERC20;
   const positionRouter = (await ethers.getContractAt("IPositionRouter", addresses.LeapPositionRouter)) as IPositionRouter;
   const derivioPositionManager = await ethers.getContractAt("DerivioPositionManager", addresses.DerivioPositionManager) as DerivioPositionManager;
+  const orderManager = await ethers.getContractAt("OrderManager", addresses.OrderManager) as OrderManager;
 
   const { tick: currentTick } = await uniswapV3Pool.slot0();
   const tickSpacing = await uniswapV3Pool.tickSpacing();
@@ -35,13 +37,12 @@ async function main(): Promise<void> {
   await weth.approve(positionRouter.address, ethers.constants.MaxUint256);
   await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
 
-  const minExecutionFee = await gmxPositionRouter.minExecutionFee();
+  const keeperFee = await getProductKeeperFee(orderManager, gmxPositionRouter, 0);
   
   // Open DerivioA
   await positionRouter.openDerivioAPositions([
     {
       recipient: owner.address,
-      value: 0,
       tickLower: lowerTick,
       tickUpper: upperTick,
       feeTier: feeTier,
@@ -53,7 +54,6 @@ async function main(): Promise<void> {
     }, // AS
     {
       recipient: owner.address,
-      value: minExecutionFee,
       tickLower: lowerTick,
       tickUpper: upperTick,
       feeTier: feeTier,
@@ -65,7 +65,7 @@ async function main(): Promise<void> {
     }], // AL
     weth.address,
     usdc.address,
-    { value: minExecutionFee }
+    { value: keeperFee }
   );
 
   // Get all positions in user

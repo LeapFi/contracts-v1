@@ -19,7 +19,6 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
     IERC20 immutable token0;
     IERC20 immutable token1;
     IUniswapV3Factory private immutable uniFactory;
-    ISwapRouter private immutable swapRouter;
     bool minting;
     IUniswapV3Pool pool;
 
@@ -66,13 +65,11 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
 
     constructor (
         IUniswapV3Factory _uniFactory, 
-        ISwapRouter _swapRouter,
         address _token0,
         address _token1
         ) 
     {
         uniFactory = _uniFactory;
-        swapRouter = _swapRouter;
 
         token0 = IERC20(_token0);
         token1 = IERC20(_token1);
@@ -120,7 +117,6 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
                         address(token1),
                         openArgs.feeTier
                     ));
-        (uint160 sqrtPriceX96, , , , , , ) = pool.slot0();
 
         minting = true;
         (uint256 amount0Minted, uint256 amount1Minted) = pool.mint(address(this), openArgs.tickLower, openArgs.tickUpper, openArgs.liquidityDesired, abi.encode(address(this)));
@@ -136,6 +132,7 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
         uint256 amount0 = openArgs.amount0Desired - amount0Minted;
         uint256 amount1 = openArgs.amount1Desired - amount1Minted;
 
+        (uint160 sqrtPriceX96, , , , , , ) = pool.slot0();
         key_ = addPositionInfo(_account, openArgs.tickLower, openArgs.tickUpper, openArgs.feeTier, pool, openArgs.liquidityDesired, sqrtPriceX96);
         returnFund(_account, constructFund(amount0, amount1));
 
@@ -145,7 +142,8 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
             openArgs.tickUpper,
             token0,
             token1,
-            openArgs.feeTier
+            openArgs.feeTier,
+            sqrtPriceX96
         );
     }
 
@@ -284,8 +282,6 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
 
         (, , uint256 feeGrowthOutside0Lower, uint256 feeGrowthOutside1Lower, , , ,) = pool.ticks(tickLower);
         (, , uint256 feeGrowthOutside0Upper, uint256 feeGrowthOutside1Upper, , , ,) = pool.ticks(tickUpper);
-
-        console.log("feeGrowthOutside0Lower:", feeGrowthOutside0Lower);
 
         // calculate fee growth below
         uint256 feeGrowthBelow0X128;

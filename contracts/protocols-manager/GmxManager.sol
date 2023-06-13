@@ -176,4 +176,10 @@ contract GmxManager is ReentrancyGuard, IProtocolPositionManager {
         }
     }
     
+    function minExecutionFee() 
+        external view
+        returns (uint256)
+    {
+        return gmxPositionRouter.minExecutionFee();
+    }
 }

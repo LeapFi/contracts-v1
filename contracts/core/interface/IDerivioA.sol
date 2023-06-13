@@ -8,7 +8,6 @@ interface IDerivioA {
 
     struct OpenArgs {
         address recipient;
-        uint256 value;
         int24 tickLower;
         int24 tickUpper;
         uint24 feeTier;
@@ -20,7 +19,6 @@ interface IDerivioA {
     }
 
     struct CloseArgs {
-        uint256 value;
         bytes32 positionKey;
         bool swapToCollateral;
     }
@@ -31,9 +29,9 @@ interface IDerivioA {
         IProtocolPositionManager.Fund[] funds;
     }
 
-    function openAS(OpenArgs memory _args) external returns (IDerivioPositionManager.ProtocolOpenResult[] memory);
-    function openAL(OpenArgs memory _args) external payable returns (IDerivioPositionManager.ProtocolOpenResult[] memory);
+    function openAS(OpenArgs memory _args) external returns (IDerivioPositionManager.OpenInfo memory);
+    function openAL(OpenArgs memory _args) external payable returns (IDerivioPositionManager.OpenInfo memory);
 
-    function positionOf(bytes32 positionKey) external view returns (IDerivioPositionManager.ProtocolOpenResult[] memory);
-    function closePosition(address account, IDerivioPositionManager.ProtocolCloseArg[] calldata args) external payable returns (IDerivioPositionManager.ProtocolCloseResult[] memory);
+    function positionOf(bytes32 _positionKey) external view returns (IDerivioPositionManager.OpenResult[] memory);
+    function closePosition(address payable _account, IDerivioPositionManager.CloseArg[] calldata _args) external payable returns (IDerivioPositionManager.CloseResult[] memory);
 }

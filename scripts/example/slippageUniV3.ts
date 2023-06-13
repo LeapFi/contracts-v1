@@ -40,7 +40,6 @@ async function main(): Promise<void> {
   // Open DerivioAS
   const positionParams = [{
     recipient: userAddr,
-    value: valueInput,
     tickLower: lowerTick,
     tickUpper: upperTick,
     feeTier: feeTier,

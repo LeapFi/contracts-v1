@@ -4,9 +4,11 @@ import { getAddresses } from "../../src/addresses";
 import {
   IERC20,
   IPositionRouter,
+  IGmxPositionRouter,
   DerivioPositionManager,
+  OrderManager
 } from "../../typechain";
-import { getPositionsInfos } from "../../src/position";
+import { getPositionsInfos, getProductKeeperFee } from "../../src/position";
 
 // Helper function to wait for a certain amount of time
 function delay(ms: number) {
@@ -23,13 +25,15 @@ async function main(): Promise<void> {
   const usdc = (await ethers.getContractAt("IERC20", addresses.USDC)) as IERC20;
   const positionRouter = (await ethers.getContractAt("IPositionRouter", addresses.LeapPositionRouter)) as IPositionRouter;
   const derivioPositionManager = await ethers.getContractAt("DerivioPositionManager", addresses.DerivioPositionManager) as DerivioPositionManager;
+  const gmxPositionRouter = (await ethers.getContractAt("IGmxPositionRouter", addresses.GmxPositionRouter)) as IGmxPositionRouter;
+  const orderManager = await ethers.getContractAt("OrderManager", addresses.OrderManager) as OrderManager;
   
   await usdc.approve(positionRouter.address, ethers.constants.MaxUint256);
   
   const isLong = true;
   const collateralAmount = 500;
   const leverage = 2;
-  let value = ethers.utils.parseUnits("0.0001", 18);
+  const keeperFee = await getProductKeeperFee(orderManager, gmxPositionRouter, 1);
 
   const collateralAmountIn = ethers.utils.parseUnits(collateralAmount.toString(), 6);
   const sizeDelta = ethers.utils.parseUnits((collateralAmount * leverage).toString(), 6);
@@ -37,15 +41,14 @@ async function main(): Promise<void> {
   await positionRouter.openDerivioFuturePositions([
     {
       recipient: owner.address,
-      value: value,
       isLong: isLong,
       collateralAmount: collateralAmountIn,
       sizeDelta: sizeDelta,
-      acceptPrice: isLong ? ethers.utils.parseUnits("1000", 30) : 0,
+      acceptPrice: isLong ? ethers.utils.parseUnits("100", 30) : 0,
     }],
     usdc.address,
     weth.address,
-    { value: value }
+    { value: keeperFee }
   );
   
   // Due to slippage limit, pending order executed fail

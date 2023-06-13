@@ -10,6 +10,7 @@ import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/Saf
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { FullMath, LiquidityAmounts } from "@arrakisfi/v3-lib-0.8/contracts/LiquidityAmounts.sol";
 import { TickMath } from "@arrakisfi/v3-lib-0.8/contracts/TickMath.sol";
+import "./OrderManager.sol";
 import "../protocols-manager/GmxManager.sol";
 import "../protocols-manager/UniV3Manager.sol";
 import "./interface/IDerivioPositionManager.sol";
@@ -29,6 +30,7 @@ contract DerivioA is ReentrancyGuard {
     bool public isZeroCollateral;
 
     IDerivioPositionManager private immutable derivioPositionManager;
+    OrderManager private immutable orderManager;
     UniV3Manager private immutable uniV3Manager;
     GmxManager private immutable gmxManager;
 
@@ -40,7 +42,6 @@ contract DerivioA is ReentrancyGuard {
 
     struct OpenArgs {
         address recipient;
-        uint256 value;
         int24 tickLower;
         int24 tickUpper;
         uint24 feeTier;
@@ -52,7 +53,6 @@ contract DerivioA is ReentrancyGuard {
     }
     
     struct CloaseArgs {
-        uint256 value;
         bytes32 positionKey;
         bool swapToCollateral;
     }
@@ -70,10 +70,12 @@ contract DerivioA is ReentrancyGuard {
     }
 
     constructor (
+        address _admin,
         UniHelper _uniHelper, 
         IUniswapV3Factory _uniFactory, 
         ISwapRouter _swapRouter,
         IDerivioPositionManager _derivioPositionManager,
+        OrderManager _orderManager,
         UniV3Manager _uniV3Manager,
         GmxManager _gmxManager,
         address _token0,
@@ -81,15 +83,16 @@ contract DerivioA is ReentrancyGuard {
         bool _isZeroCollateral
         ) 
     {
-        admin = msg.sender;
+        admin = _admin;
         
         uniHelper = _uniHelper;
         uniFactory = _uniFactory;
         swapRouter = _swapRouter;
 
-        derivioPositionManager = IDerivioPositionManager(_derivioPositionManager);
-        uniV3Manager = UniV3Manager(_uniV3Manager);
-        gmxManager = GmxManager(_gmxManager);
+        derivioPositionManager = _derivioPositionManager;
+        orderManager = _orderManager;
+        uniV3Manager = _uniV3Manager;
+        gmxManager = _gmxManager;
         
         token0 = IERC20(_token0);
         token1 = IERC20(_token1);
@@ -99,14 +102,14 @@ contract DerivioA is ReentrancyGuard {
         indexToken = _isZeroCollateral ? token1 : token0;
     }
 
-    function setLiquidator(address _account, bool _isActive) external onlyAdmin {
+    function setLiquidator(address _account, bool _isActive) public onlyAdmin {
         isLiquidator[_account] = _isActive;
         emit SetLiquidator(_account, _isActive);
     }
 
     function openAS(OpenArgs memory _args) 
         external nonReentrant 
-        returns (IDerivioPositionManager.ProtocolOpenResult[] memory)
+        returns (IDerivioPositionManager.OpenInfo memory)
     {
         console.log('_args.swapSqrtPriceLimitX96:', _args.swapSqrtPriceLimitX96);
         console.log('recover:', uniHelper.sqrtPriceX96ToPrice(uint160(_args.swapSqrtPriceLimitX96)));
@@ -125,19 +128,19 @@ contract DerivioA is ReentrancyGuard {
         (sqrtPriceX96, tickCurrent, , , , , ) = pool.slot0();
 
         // Prepare protocol open arguments
-        IDerivioPositionManager.ProtocolOpenArg[] memory openArgs = new IDerivioPositionManager.ProtocolOpenArg[](1);
-        openArgs[0] = createUniV3ProtocolOpenArg(_args, sqrtPriceX96);
+        IDerivioPositionManager.OpenArg[] memory openArgs = new IDerivioPositionManager.OpenArg[](1);
+        openArgs[0] = createUniV3OpenArg(_args, sqrtPriceX96);
 
         token0.approve(address(uniV3Manager), _args.amount0Desired);
         token1.approve(address(uniV3Manager), _args.amount1Desired);
- 
+
         // Open position in the protocol
-        return derivioPositionManager.openProtocolsPosition(_args.recipient, openArgs);
+        return derivioPositionManager.openProtocolsPosition(_args.recipient, openArgs, 0);
     }
 
     function openAL(OpenArgs memory _args) 
         external payable nonReentrant 
-        returns (IDerivioPositionManager.ProtocolOpenResult[] memory)
+        returns (IDerivioPositionManager.OpenInfo memory)
     {
         IUniswapV3Pool pool = IUniswapV3Pool(uniFactory.getPool(address(token0), address(token1), _args.feeTier));
         uniHelper.validateTickSpacing(pool, _args.tickLower, _args.tickUpper);
@@ -150,31 +153,31 @@ contract DerivioA is ReentrancyGuard {
         (_args.amount0Desired, _args.amount1Desired) = swapToOptimalAmount(_args.amount0Desired, _args.amount1Desired, amount0Uni, amount1Uni, collateralAmount, _args.feeTier, _args.swapSqrtPriceLimitX96);
 
         // Update current price
-        (sqrtPriceX96, tickCurrent, , , , , ) = pool.slot0();
+        (sqrtPriceX96, , , , , , ) = pool.slot0();
         
         // Prepare protocol open arguments
-        IDerivioPositionManager.ProtocolOpenArg[] memory openArgs = new IDerivioPositionManager.ProtocolOpenArg[](2);
-        openArgs[0] = createUniV3ProtocolOpenArg(_args, sqrtPriceX96);
-        openArgs[1] = createGmxProtocolOpenArg(_args.value, collateralAmount, shortDelta, _args.shortPriceLimit);
+        IDerivioPositionManager.OpenArg[] memory openArgs = new IDerivioPositionManager.OpenArg[](2);
+        openArgs[0] = createUniV3OpenArg(_args, sqrtPriceX96);
+        openArgs[1] = createGmxOpenArg(collateralAmount, shortDelta, _args.shortPriceLimit);
 
         token0.approve(address(uniV3Manager), _args.amount0Desired);
         token1.approve(address(uniV3Manager), _args.amount1Desired);
         collateralToken.approve(address(gmxManager), collateralAmount);
 
         // Open positions
-        return derivioPositionManager.openProtocolsPosition{ value: _args.value }(_args.recipient, openArgs);
+        return derivioPositionManager.openProtocolsPosition{ value: gmxManager.minExecutionFee() }(_args.recipient, openArgs, orderManager.keeperFeeOf(0));
     }
 
-    function createUniV3ProtocolOpenArg(OpenArgs memory _args, uint160 _sqrtPriceX96Current) 
+    function createUniV3OpenArg(OpenArgs memory _args, uint160 _sqrtPriceX96Current) 
         internal view 
-        returns (IDerivioPositionManager.ProtocolOpenArg memory uniV3Arg) 
+        returns (IDerivioPositionManager.OpenArg memory uniV3Arg) 
     {
         uint160 sqrtPriceX96Lower = TickMath.getSqrtRatioAtTick(_args.tickLower);
         uint160 sqrtPriceX96Upper = TickMath.getSqrtRatioAtTick(_args.tickUpper);
         uint128 liquidityDesired = 
             LiquidityAmounts.getLiquidityForAmounts(_sqrtPriceX96Current, sqrtPriceX96Lower, sqrtPriceX96Upper, _args.amount0Desired, _args.amount1Desired);
         
-        uniV3Arg = IDerivioPositionManager.ProtocolOpenArg({
+        uniV3Arg = IDerivioPositionManager.OpenArg({
             manager: uniV3Manager,
             value: 0,
             funds: new IProtocolPositionManager.Fund[](2),
@@ -197,13 +200,13 @@ contract DerivioA is ReentrancyGuard {
         return uniV3Arg;
     }
 
-    function createGmxProtocolOpenArg(uint256 _value, uint256 _collateralAmount, uint256 _shortDelta, uint256 _shortPriceLimit) 
+    function createGmxOpenArg(uint256 _collateralAmount, uint256 _shortDelta, uint256 _shortPriceLimit) 
         internal view 
-        returns (IDerivioPositionManager.ProtocolOpenArg memory gmxArg) 
+        returns (IDerivioPositionManager.OpenArg memory gmxArg) 
     {
-        gmxArg = IDerivioPositionManager.ProtocolOpenArg({
+        gmxArg = IDerivioPositionManager.OpenArg({
             manager: gmxManager,
-            value: _value,
+            value: gmxManager.minExecutionFee(),
             funds: new IProtocolPositionManager.Fund[](1),
             inputs: abi.encode(
                 address(collateralToken),
@@ -221,29 +224,35 @@ contract DerivioA is ReentrancyGuard {
 
     function closePosition(address _account, CloaseArgs memory _args)
         public payable nonReentrant 
-        returns (IDerivioPositionManager.ProtocolCloseResult[] memory closedPositions_)
+        returns (IDerivioPositionManager.CloseResult[] memory closedPositions_)
     {
-        IDerivioPositionManager.ProtocolOpenResult[] memory position = derivioPositionManager.positionOf(_args.positionKey);
-        IDerivioPositionManager.ProtocolCloseArg[] memory protocolCloseArgs = new IDerivioPositionManager.ProtocolCloseArg[](position.length);
+        IDerivioPositionManager.OpenInfo memory position = derivioPositionManager.positionOf(_args.positionKey);
+        IDerivioPositionManager.CloseArg[] memory protocolCloseArgs = new IDerivioPositionManager.CloseArg[](position.openResults.length);
+        uint256 sumValue = 0;
 
-        for (uint i = 0; i < position.length; i++) {
-            if (position[i].manager == uniV3Manager) {
-                protocolCloseArgs[i] = IDerivioPositionManager.ProtocolCloseArg({
+        for (uint i = 0; i < position.openResults.length; i++) {
+            if (position.openResults[i].manager == uniV3Manager) {
+                protocolCloseArgs[i] = IDerivioPositionManager.CloseArg({
                     manager: uniV3Manager,
-                    inputs: abi.encode(position[i].key),
+                    inputs: abi.encode(position.openResults[i].key),
                     value: 0
                 });
-            } else if (position[i].manager == gmxManager) {
-                protocolCloseArgs[i] = IDerivioPositionManager.ProtocolCloseArg({
+            } else if (position.openResults[i].manager == gmxManager) {
+
+                uint256 executionFee = gmxManager.minExecutionFee();
+
+                protocolCloseArgs[i] = IDerivioPositionManager.CloseArg({
                     manager: gmxManager,
-                    inputs: abi.encode(position[i].key, uint256(0), type(uint256).max),
-                    value: _args.value
+                    inputs: abi.encode(position.openResults[i].key, uint256(0), type(uint256).max),
+                    value: executionFee
                 });
+
+                sumValue += executionFee;
             }
         }
 
         // Call closeProtocolsPosition
-        closedPositions_ = derivioPositionManager.closeProtocolsPosition{ value: _args.value }(_account, _args.positionKey, protocolCloseArgs);
+        closedPositions_ = derivioPositionManager.closeProtocolsPosition{ value: sumValue }(_account, _args.positionKey, protocolCloseArgs);
 
         for (uint i = 0; i < closedPositions_.length; i++) {
             if (closedPositions_[i].manager == uniV3Manager) {
@@ -265,11 +274,13 @@ contract DerivioA is ReentrancyGuard {
         }
     }
 
-    function liquidatePosition(address _account, CloaseArgs memory _args) 
-        external onlyLiquidator 
-        returns (IDerivioPositionManager.ProtocolCloseResult[] memory closedPositions_)
+    function liquidatePosition(address payable _account, CloaseArgs memory _args) 
+        external payable onlyLiquidator 
+        returns (IDerivioPositionManager.CloseResult[] memory closedPositions_)
     {
         require(derivioPositionManager.validatedIsLiquidated(_args.positionKey), "no protocol position is liquidated");
+
+        orderManager.transferOutETH(derivioPositionManager.keeperFee(_args.positionKey), payable(msg.sender));
 
         return closePosition(_account, _args);
     }

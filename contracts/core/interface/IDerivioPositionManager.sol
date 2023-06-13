@@ -7,67 +7,78 @@ interface IDerivioPositionManager {
 
     struct Position {
         bytes32 positionKey;
+        uint256 timestamp;
         AggregateInfo[] aggregateInfos;
     }
 
     struct AggregateInfo {
-        ProtocolOpenResult openResult;
-        uint256 timestamp;
+        OpenResult openResult;
         bytes currentInfos;
         IProtocolPositionManager.Fund[] fees;
     }
 
-    struct ProtocolOpenArg {
+    struct OpenArg {
         IProtocolPositionManager manager;
         uint256 value;
         IProtocolPositionManager.Fund[] funds;
         bytes inputs;
     }
 
-    struct ProtocolOpenResult {
-        IProtocolPositionManager manager;
+    struct OpenInfo {
+        address account;
         uint256 timestamp;
+        uint256 keeperFee;
+        OpenResult[] openResults;
+    }
+
+    struct OpenResult {
+        IProtocolPositionManager manager;
         bytes32 key;
         bytes infos;
     }
 
-    struct ProtocolCloseArg {
+    struct CloseArg {
         IProtocolPositionManager manager;
         uint256 value;
         bytes inputs;
     }
 
-    struct ProtocolCloseResult {
+    struct CloseResult {
         IProtocolPositionManager manager;
         bytes infos;
         IProtocolPositionManager.Fund[] funds;
     }
 
-    struct ProtocolFees {
+    struct Fees {
         IProtocolPositionManager manager;
         IProtocolPositionManager.Fund[] fees;
     }
 
     function openProtocolsPosition(
         address _account,
-        ProtocolOpenArg[] memory _args
-    ) external payable returns (ProtocolOpenResult[] memory result_);
+        OpenArg[] memory _args,
+        uint256 _keeperFee
+    ) external payable returns (OpenInfo memory result_);
 
     function closeProtocolsPosition(
         address _account,
         bytes32 _positionKey,
-        ProtocolCloseArg[] memory _args
-    ) external payable returns (ProtocolCloseResult[] memory result_);
+        CloseArg[] memory _args
+    ) external payable returns (CloseResult[] memory result_);
 
     function validatedIsLiquidated(bytes32 _positionKey) external view returns (bool);
 
-    function feeOf(bytes32 _positionKey) external view returns (ProtocolFees[] memory result_);
+    function feeOf(bytes32 _positionKey) external view returns (Fees[] memory result_);
 
     function claimFees(address _account, bytes32 _positionKey) external;
 
-    function positionOf(bytes32 _positionKey) external view returns (ProtocolOpenResult[] memory);
+    function keeperFee(bytes32 _positionKey) external view returns (uint256);
+
+    function positionOf(bytes32 _positionKey) external view returns (OpenInfo memory);
 
     function getAllPositionKeys(address _account) external view returns (bytes32[] memory);
 
     function getAllPositions(address _account) external view returns (Position[] memory);
+
+    function setManager(address _account, bool _isActive) external;
 }
