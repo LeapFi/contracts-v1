@@ -44,6 +44,7 @@ const config: HardhatUserConfig = {
     leapFiTestnet: {
       accounts: acc1 ? [acc1] : [],
       url: 'https://alpha.dev.leapfi.io/',
+      // url: 'https://alpha.uat.leapfi.io/',
     },
 
     arbitrum: {
