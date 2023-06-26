@@ -7,6 +7,6 @@ export async function fundErc20(token: any, sender: any, recipient: any, amount:
   const fundAmount = ethers.utils.parseUnits(String(amount), decimals);
   
   // transfer funding to recipient
-  const whale = await ethers.getSigner(sender);
+  const whale = await ethers.getImpersonatedSigner(sender);
   await token.connect(whale).transfer(recipient, fundAmount);
 };

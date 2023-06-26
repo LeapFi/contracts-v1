@@ -11,6 +11,7 @@ export interface Addresses {
   GmxFastPriceFeed: string;
   GmxEthPriceFeed: string;
   GmxLiquidator: string;
+  CrvUSDController: string;
   WETH: string;
   USDC: string;
   USDCWhale: string;
@@ -34,6 +35,7 @@ export const getAddresses = (network: string): Addresses => {
         GmxFastPriceFeed: "0x11d62807dae812a0f1571243460bf94325f43bb7",
         GmxEthPriceFeed: "0x3607e46698d218B3a5Cae44bF381475C0a5e2ca7",
         GmxLiquidator: "0x44311c91008DDE73dE521cd25136fD37d616802c",
+        CrvUSDController: "0x100dAa78fC509Db39Ef7D04DE0c1ABD299f4C6CE",
         WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
         USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
         USDCWhale: "0x905dfcd5649217c42684f23958568e533c711aa3",
@@ -54,6 +56,7 @@ export const getAddresses = (network: string): Addresses => {
         GmxFastPriceFeed: "0x11d62807dae812a0f1571243460bf94325f43bb7",
         GmxEthPriceFeed: "0x3607e46698d218B3a5Cae44bF381475C0a5e2ca7",
         GmxLiquidator: "0x44311c91008DDE73dE521cd25136fD37d616802c",
+        CrvUSDController: "0x100dAa78fC509Db39Ef7D04DE0c1ABD299f4C6CE",
         WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
         USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
         USDCWhale: "0x905dfcd5649217c42684f23958568e533c711aa3",
@@ -74,6 +77,7 @@ export const getAddresses = (network: string): Addresses => {
         GmxFastPriceFeed: "0x11d62807dae812a0f1571243460bf94325f43bb7",
         GmxEthPriceFeed: "0x3607e46698d218B3a5Cae44bF381475C0a5e2ca7",
         GmxLiquidator: "0x44311c91008DDE73dE521cd25136fD37d616802c",
+        CrvUSDController: "0x100dAa78fC509Db39Ef7D04DE0c1ABD299f4C6CE",
         WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
         USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
         USDCWhale: "",
