@@ -363,17 +363,24 @@ contract DerivioA is ReentrancyGuard {
             require(_args.shortLeverage >= leverageDenominator, "shortLeverage too small");
 
             (uint256 amount0TotalSim, , , , uint256 amount0LowerSim, ) = uniHelper.ratioAtTick(_tickCurrent, _args.tickLower, _args.tickUpper, false);
-            amountCollateral = amount0Total * amount0LowerSim / amount0TotalSim;
+            amountCollateral = amount0Total * amount0LowerSim / (amount0TotalSim * _args.shortLeverage / leverageDenominator + amount0LowerSim);
+
+            // console.log('simLowerUSD:', amount0LowerSim);
+            // console.log('simTotalUSD:', amount0TotalSim);
 
             // apply leverage
-            shortDelta = amountCollateral;
-            amountCollateral = amountCollateral * leverageDenominator / _args.shortLeverage;
+            // amountCollateral = shortDelta * leverageDenominator / _args.shortLeverage;
+            shortDelta = amountCollateral * _args.shortLeverage / leverageDenominator;
 
+            // Reserved collateral amount
             amount0Total -= amountCollateral;
 
             if (!isZeroCollateral) {
                 amountCollateral = uniHelper.amount0ToAmount1(amountCollateral, _sqrtPriceX96);
                 shortDelta = uniHelper.amount0ToAmount1(shortDelta, _sqrtPriceX96);
+                
+                // console.log('shortDelta:', shortDelta);
+                // console.log('Theoritical short delta:', (_args.amount1Desired - amountCollateral) * amount0LowerSim / amount0TotalSim);
             }
         }
 
@@ -386,6 +393,14 @@ contract DerivioA is ReentrancyGuard {
 
         amount0Uni = amount0Total * uint256(int256(_args.tickUpper - _tickCurrent)) / uint256(int256(_args.tickUpper - _args.tickLower));
         amount1Uni = uniHelper.amount0ToAmount1(amount0Total - amount0Uni, _sqrtPriceX96);
+        
+        // console.log('totalUSD:', _args.amount1Desired);
+        // console.log('shortLeverage:', _args.shortLeverage);
+        // console.log('Gmx short delta:', shortDelta);
+        // console.log('Gmx short collateral:', amountCollateral);
+        // console.log('Uni LP USD:', _args.amount1Desired - amountCollateral);
+        // console.log('amount0Uni:', amount0Uni);
+        // console.log('amount1Uni:', amount1Uni);
     }
 
     function swapExactInputSingle(
