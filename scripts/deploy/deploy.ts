@@ -113,9 +113,9 @@ async function main(): Promise<void> {
   await derivioPositionManager.setManager(derivioFuture.address, true);
 
   // DerivioA keeper fee
-  await orderManager.setKeeperFee(0, ethers.utils.parseUnits("0.02", 18));
+  await orderManager.setKeeperFee(0, ethers.utils.parseUnits("0.0001", 18));
   // DerivioFuture keeper fee
-  await orderManager.setKeeperFee(1, ethers.utils.parseUnits("0.01", 18));
+  await orderManager.setKeeperFee(1, ethers.utils.parseUnits("0.00003", 18));
 
   await orderManager.setManager(positionRouter.address, true);
   await orderManager.setManager(derivioA.address, true);

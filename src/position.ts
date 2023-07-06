@@ -28,11 +28,13 @@ interface OpenInfo {}
   
 interface UniV3OpenInfo extends OpenInfo {
     liquidity: String;
+    feeTier: String;
     tickLower: String;
     tickUpper: String;
     token0: String;
     token1: String;
-    feeTier: String;
+    amount0: String;
+    amount1: String;
     entrySqrtPriceX96: String;
 }
   
@@ -146,23 +148,27 @@ export async function getPositionsInfos(
           const decodedOpenValues = ethers.utils.defaultAbiCoder.decode(
             [
               'uint256', // liquidity
+              'uint256', // feeTier
               'int24',   // tickLower
               'int24',   // tickUpper
               'address', // token0
               'address', // token1
-              'uint256', // feeTier
+              'uint256', // amount0
+              'uint256', // amount1
               'uint160', // entrySqrtPriceX96
             ],
             aggregateInfo.openResult.infos
           );
           const uniV3OpenInfo: UniV3OpenInfo = {
             liquidity: decodedOpenValues[0].toString(),
-            tickLower: decodedOpenValues[1].toString(),
-            tickUpper: decodedOpenValues[2].toString(),
-            token0: decodedOpenValues[3],
-            token1: decodedOpenValues[4],
-            feeTier: decodedOpenValues[5].toString(),
-            entrySqrtPriceX96: decodedOpenValues[6].toString(),
+            feeTier: decodedOpenValues[1].toString(),
+            tickLower: decodedOpenValues[2].toString(),
+            tickUpper: decodedOpenValues[3].toString(),
+            token0: decodedOpenValues[4],
+            token1: decodedOpenValues[5],
+            amount0: decodedOpenValues[6].toString(),
+            amount1: decodedOpenValues[7].toString(),
+            entrySqrtPriceX96: decodedOpenValues[8].toString(),
           };
   
           const fees = aggregateInfo.fees.map((fee) => {
@@ -202,11 +208,6 @@ export async function getProductKeeperFee(
 
   let totalKeeperFee = keeperFee.add(gmxExecutionFee).toString();
   
-  // let keeperFee = BigNumber.from(await orderManager.keeperFeeOf(productId));
-  // let gmxExecutionFee = BigNumber.from(await gmxPositionRouter.minExecutionFee());
-
-  // let totalKeeperFee = keeperFee.add(gmxExecutionFee).toString();
-
   return totalKeeperFee;
 }
 

@@ -138,11 +138,13 @@ contract UniV3Manager is ReentrancyGuard, IProtocolPositionManager, IUniswapV3Mi
 
         result_ = abi.encode(
             openArgs.liquidityDesired,
+            openArgs.feeTier,
             openArgs.tickLower, 
             openArgs.tickUpper,
             token0,
             token1,
-            openArgs.feeTier,
+            amount0Minted,
+            amount1Minted,
             sqrtPriceX96
         );
     }
