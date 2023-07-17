@@ -47,7 +47,7 @@ contract DerivioA is ReentrancyGuard {
         uint24 feeTier;
         uint256 amount0Desired;
         uint256 amount1Desired;
-        uint24 shortLeverage;
+        uint128 shortLeverage;
         uint160 swapSqrtPriceLimitX96;
         uint256 shortPriceLimit;
     }
