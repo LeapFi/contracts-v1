@@ -122,6 +122,8 @@ contract DerivioPositionManager is ReentrancyGuard {
             }));
         }
 
+        emit AddPosition(_account, positionKey);
+
         return pos;
     }
 
@@ -185,6 +187,7 @@ contract DerivioPositionManager is ReentrancyGuard {
             }
         }
 
+        emit RemovePosition(_account, _positionKey);
         emit RemovePositionFail(_account, _positionKey);
     }
 
