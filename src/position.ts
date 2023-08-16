@@ -11,7 +11,7 @@ type Position = ReturnType<DerivioPositionManager["getAllPositions"]> extends Pr
 interface PositionParse {
     positionKey: string;
     timestamp: String;
-    aggregateInfos: BaseAggregateInfo[];
+    aggregateInfos: Array<GmxManagerAggregateInfo | UniswapV3ManagerAggregateInfo>;
 }
   
 interface BaseAggregateInfo {
@@ -21,7 +21,18 @@ interface BaseAggregateInfo {
 }
   
 interface GmxManagerAggregateInfo extends BaseAggregateInfo {
+    manager: 'Gmx Manager';
     currentInfos: GmxManagerInfo;
+}
+
+interface UniswapV3ManagerAggregateInfo extends BaseAggregateInfo {
+  manager: 'Uniswap V3 Manager';
+  openInfos: UniV3OpenInfo;
+  fees: Array<{
+    token: string;
+    amount: string;
+  }>;
+  
 }
   
 interface OpenInfo {}
@@ -178,7 +189,7 @@ export async function getPositionsInfos(
             };
           });
   
-          const uniV3ManagerAggregateInfo = {
+          const uniV3ManagerAggregateInfo: UniswapV3ManagerAggregateInfo = {
             manager: "Uniswap V3 Manager",
             key: aggregateInfo.openResult.key,
             openInfos: uniV3OpenInfo,
