@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "deploy-contract": "npx hardhat run --network leapFiTestnet .\\scripts\\deploy\\deploy.ts",
+    "fix-gmx-contract": "npx hardhat run --network leapFiTestnet .\\scripts\\deploy\\gmxTimeDeviation.ts"
+  },
   "devDependencies": {
     "@arrakisfi/v3-lib-0.8": "^0.1.3",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.8",
