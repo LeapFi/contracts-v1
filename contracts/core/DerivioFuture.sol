@@ -19,6 +19,7 @@ contract DerivioFuture is ReentrancyGuard {
 
     struct OpenArgs {
         address recipient;
+        bool transferFromRecipient;
         bool isLong;
         uint256 collateralAmount;
         uint256 sizeDelta;

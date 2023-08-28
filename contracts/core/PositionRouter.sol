@@ -110,9 +110,15 @@ contract PositionRouter is ReentrancyGuard {
         internal
         returns (IDerivioPositionManager.OpenInfo memory)
     {
-        _token0.safeTransferFrom(msg.sender, address(this), _args.amount0Desired);
-        _token1.safeTransferFrom(msg.sender, address(this), _args.amount1Desired);
-
+        if (_args.transferFromRecipient) {
+            _token0.safeTransferFrom(_args.recipient, address(this), _args.amount0Desired);
+            _token1.safeTransferFrom(_args.recipient, address(this), _args.amount1Desired);
+        }
+        else {
+            _token0.safeTransferFrom(msg.sender, address(this), _args.amount0Desired);
+            _token1.safeTransferFrom(msg.sender, address(this), _args.amount1Desired);
+        }
+        
         _token0.approve(address(_derivioA), _args.amount0Desired);
         _token1.approve(address(_derivioA), _args.amount1Desired);
 
@@ -145,7 +151,13 @@ contract PositionRouter is ReentrancyGuard {
         internal
         returns (IDerivioPositionManager.OpenInfo memory)
     {
-        _collateralToken.safeTransferFrom(msg.sender, address(this), _args.collateralAmount);
+        if (_args.transferFromRecipient) {
+            _collateralToken.safeTransferFrom(_args.recipient, address(this), _args.collateralAmount);
+        }
+        else {
+            _collateralToken.safeTransferFrom(msg.sender, address(this), _args.collateralAmount);
+        }
+
         _collateralToken.approve(address(_derivioFuture), _args.collateralAmount);
 
         return _derivioFuture.openFuture{ value: gmxManager.minExecutionFee() }(_args, _keeperFee);

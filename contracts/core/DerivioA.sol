@@ -42,6 +42,7 @@ contract DerivioA is ReentrancyGuard {
 
     struct OpenArgs {
         address recipient;
+        bool transferFromRecipient;
         int24 tickLower;
         int24 tickUpper;
         uint24 feeTier;
@@ -111,6 +112,8 @@ contract DerivioA is ReentrancyGuard {
         external nonReentrant 
         returns (IDerivioPositionManager.OpenInfo memory)
     {
+        console.log('gasleft:', gasleft());
+        
         console.log('_args.swapSqrtPriceLimitX96:', _args.swapSqrtPriceLimitX96);
         console.log('recover:', uniHelper.sqrtPriceX96ToPrice(uint160(_args.swapSqrtPriceLimitX96)));
         

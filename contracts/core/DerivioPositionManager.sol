@@ -66,6 +66,7 @@ contract DerivioPositionManager is ReentrancyGuard {
     }
 
     event AddPosition(address account, bytes32 positionKey);
+    event AddResult(bytes32 positionKey, address manager, bytes32 key, bytes infos);
     event RemovePosition(address account, bytes32 positionKey);
     event RemovePositionFail(address account, bytes32 positionKey);
     event SetManager(address account, bool isActive);
@@ -120,6 +121,8 @@ contract DerivioPositionManager is ReentrancyGuard {
                 key: key,
                 infos: infos
             }));
+
+            emit AddResult(positionKey, address(_args[i].manager), key, infos);
         }
 
         emit AddPosition(_account, positionKey);

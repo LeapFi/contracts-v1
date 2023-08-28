@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 interface IGmxFastPriceFeed {
 
+    function gov() external view returns (address);
+    
     function setPricesWithBitsAndExecute(
         uint256 _priceBits,
         uint256 _timestamp,
@@ -14,8 +16,7 @@ interface IGmxFastPriceFeed {
 
     function setPricesWithBits(uint256 _priceBits, uint256 _timestamp) external;
 
-    function gov() external view returns (address);
-
+    function setMaxTimeDeviation(uint256 _maxTimeDeviation) external;
     function setUpdater(address _account, bool _isActive) external;
 
     event DisableFastPrice(address signer);
