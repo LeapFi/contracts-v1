@@ -70,6 +70,7 @@ async function main(): Promise<void> {
   // Open DerivioAL
   const positionParams = [{
     recipient: userAddr,
+    transferFromRecipient: true,
     tickLower: lowerTick,
     tickUpper: upperTick,
     feeTier: feeTier,

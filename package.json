@@ -1,10 +1,13 @@
 {
   "scripts": {
     "deploy-contract": "npx hardhat run --network leapFiTestnet .\\scripts\\deploy\\deploy.ts",
-    "fix-gmx-contract": "npx hardhat run --network leapFiTestnet .\\scripts\\deploy\\gmxTimeDeviation.ts"
+    "fix-gmx-contract": "npx hardhat run --network leapFiTestnet .\\scripts\\deploy\\gmxTimeDeviation.ts",
+    "test": "npx hardhat test .\\test\\derivioA-positionRouter.ts",
+    "derivio-al": "npx hardhat run --network leapFiTestnet .\\scripts\\example\\derivioAL.ts"
   },
   "devDependencies": {
     "@arrakisfi/v3-lib-0.8": "^0.1.3",
+    "@nomicfoundation/hardhat-chai-matchers": "^1.0.0",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.8",
     "@nomicfoundation/hardhat-toolbox": "^2.0.1",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
@@ -14,13 +17,18 @@
     "@uniswap/v3-periphery": "^1.4.3",
     "@uniswap/v3-sdk": "^3.9.0",
     "@typechain/hardhat": "^6.1.2",
+    "@types/chai": "^4.2.0",
+    "@types/mocha": "^10.0.1",
     "chai": "^4.3.7",
     "ethereum-waffle": "^4.0.10",
     "ethers": "^5.7.2",
     "hardhat": "^2.17.1",
     "hardhat-gas-reporter": "^1.0.9",
+    "solidity-coverage": "^0.8.1",
     "jsbi": "3.1.4",
-    "ts-node": "^10.9.1"
+    "ts-node": "^10.9.1",
+    "typechain": "^8.3.1",
+    "typescript": "^5.1.6"
   },
   "dependencies": {
     "dotenv": "^16.0.3",

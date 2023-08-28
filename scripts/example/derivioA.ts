@@ -43,6 +43,7 @@ async function main(): Promise<void> {
   await positionRouter.openDerivioAPositions([
     {
       recipient: owner.address,
+      transferFromRecipient: true,
       tickLower: lowerTick,
       tickUpper: upperTick,
       feeTier: feeTier,
@@ -54,6 +55,7 @@ async function main(): Promise<void> {
     }, // AS
     {
       recipient: owner.address,
+      transferFromRecipient: true,
       tickLower: lowerTick,
       tickUpper: upperTick,
       feeTier: feeTier,

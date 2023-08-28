@@ -41,6 +41,7 @@ async function main(): Promise<void> {
   await positionRouter.openDerivioFuturePositions([
     {
       recipient: owner.address,
+      transferFromRecipient: true,
       isLong: isLong,
       collateralAmount: collateralAmountIn,
       sizeDelta: sizeDelta,
