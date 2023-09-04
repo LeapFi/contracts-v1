@@ -1,9 +1,10 @@
 {
   "scripts": {
-    "deploy-contract": "npx hardhat run --network leapFiTestnet .\\scripts\\deploy\\deploy.ts",
-    "fix-gmx-contract": "npx hardhat run --network leapFiTestnet .\\scripts\\deploy\\gmxTimeDeviation.ts",
-    "test": "npx hardhat test .\\test\\derivioA-positionRouter.ts",
-    "derivio-al": "npx hardhat run --network leapFiTestnet .\\scripts\\example\\derivioAL.ts"
+    "deploy-contract": "npx hardhat run --network leapFiTestnet ./scripts/deploy/deploy.ts",
+    "fix-gmx-contract": "npx hardhat run --network leapFiTestnet ./scripts/deploy/gmxTimeDeviation.ts",
+    "test": "npx hardhat test ./test/derivioA-positionRouter.ts",
+    "derivio:al": "npx hardhat run --network leapFiTestnet ./scripts/example/derivioAL.ts",
+    "all-position": "npx hardhat run --network leapFiTestnet ./scripts/example/getAllPositions.ts"
   },
   "devDependencies": {
     "@arrakisfi/v3-lib-0.8": "^0.1.3",
