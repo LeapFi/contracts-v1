@@ -7,6 +7,16 @@ import "../DerivioFuture.sol";
 
 interface IPositionRouter {
 
+    function openDerivioPositions(
+        DerivioA.OpenArgs[] memory _aArgsList, 
+        address _token0, 
+        address _token1,
+        DerivioFuture.OpenArgs[] memory _futureArgsList, 
+        address _collateralToken, 
+        address _indexToken
+    ) 
+        external payable returns (IDerivioPositionManager.OpenInfo[] memory aResults, IDerivioPositionManager.OpenInfo[] memory futureResults);
+
     function openDerivioAPositions(DerivioA.OpenArgs[] memory _argsList, address _token0, address _token1) 
         external payable returns (DerivioPositionManager.OpenResult[][] memory);
 

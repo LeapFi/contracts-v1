@@ -90,9 +90,29 @@ contract PositionRouter is ReentrancyGuard {
             _indexToken
         ));
     }
+
+    function openDerivioPositions(
+        DerivioA.OpenArgs[] memory _aArgsList, 
+        address _token0, 
+        address _token1,
+        DerivioFuture.OpenArgs[] memory _futureArgsList, 
+        address _collateralToken, 
+        address _indexToken
+    ) 
+        payable external nonReentrant
+        returns (IDerivioPositionManager.OpenInfo[] memory aResults, IDerivioPositionManager.OpenInfo[] memory futureResults) 
+    {
+        // Open DerivioAPositions
+        aResults = openDerivioAPositions(_aArgsList, _token0, _token1);
+        
+        // Open DerivioFuturePositions
+        futureResults = openDerivioFuturePositions(_futureArgsList, _collateralToken, _indexToken);
+
+        return (aResults, futureResults);
+    }
     
     function openDerivioAPositions(DerivioA.OpenArgs[] memory _argsList, address _token0, address _token1)
-        payable external nonReentrant
+        payable public
         returns (IDerivioPositionManager.OpenInfo[] memory)
     {
         DerivioA derivioA = getDerivioAContract(derivioAId, _token0, _token1);
@@ -131,7 +151,7 @@ contract PositionRouter is ReentrancyGuard {
     }
     
     function openDerivioFuturePositions(DerivioFuture.OpenArgs[] memory _argsList, address _collateralToken, address _indexToken)
-        payable external nonReentrant
+        payable public
         returns (IDerivioPositionManager.OpenInfo[] memory)
     {
         DerivioFuture derivioFuture = getDerivioFutureContract(derivioFutureId, _collateralToken, _indexToken);

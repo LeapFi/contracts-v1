@@ -4,6 +4,7 @@
     "fix-gmx-contract": "npx hardhat run --network leapFiTestnet ./scripts/deploy/gmxTimeDeviation.ts",
     "test": "npx hardhat test ./test/derivioA-positionRouter.ts",
     "derivio:al": "npx hardhat run --network leapFiTestnet ./scripts/example/derivioAL.ts",
+    "derivio:list": "npx hardhat run --network leapFiTestnet ./scripts/example/derivioList.ts",
     "all-position": "npx hardhat run --network leapFiTestnet ./scripts/example/getAllPositions.ts"
   },
   "devDependencies": {

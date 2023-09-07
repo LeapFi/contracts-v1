@@ -82,6 +82,7 @@ describe("DerivioA test", function () {
     await positionRouter.openDerivioAPositions([
       {
         recipient: owner.address,
+        transferFromRecipient: true,
         tickLower: lowerTick,
         tickUpper: upperTick,
         feeTier: feeTier,
@@ -116,6 +117,7 @@ describe("DerivioA test", function () {
     await positionRouter.openDerivioFuturePositions([
         {
           recipient: owner.address,
+          transferFromRecipient: true,
           isLong: isLong,
           collateralAmount: collateralAmountIn,
           sizeDelta: sizeDelta,
@@ -434,6 +436,7 @@ describe("DerivioA test", function () {
       await positionRouter.openDerivioAPositions([
         {
           recipient: owner.address,
+          transferFromRecipient: true,
           tickLower: lowerTick,
           tickUpper: upperTick,
           feeTier: feeTier,
@@ -445,6 +448,7 @@ describe("DerivioA test", function () {
         },
         {
           recipient: owner.address,
+          transferFromRecipient: true,
           tickLower: lowerTick,
           tickUpper: upperTick,
           feeTier: feeTier,
